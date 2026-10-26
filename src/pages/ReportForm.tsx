@@ -20,6 +20,7 @@ export default function ReportForm() {
   const [categories, setCategories] = useState<string[]>([]);
   const [reportsLeft, setReportsLeft] = useState<number>(30);
   const navigate = useNavigate();
+  const [profile, setProfile] = useState<any>(null);
   
   const savedDraft = JSON.parse(localStorage.getItem('reportDraft') || '{}');
   
@@ -36,7 +37,13 @@ export default function ReportForm() {
     (facebook && facebook.trim().toUpperCase() !== 'N/A');
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      setSession(session);
+      if (session) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+        setProfile(data);
+      }
+    });
     
     const fetchCategories = async () => {
       const { data, error } = await supabase.from('categories').select('name').order('name');
@@ -190,19 +197,15 @@ export default function ReportForm() {
 
         <div className="pt-2">
           {!session ? (
-            <button 
-              type="button" 
-              onClick={() => navigate('/login?redirect=/report')}
-              className="w-full bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 font-black py-3 rounded-xl transition-all shadow-sm text-sm"
-            >
+            <button type="button" onClick={() => navigate('/login?redirect=/report')} className="w-full bg-gray-900 dark:bg-white hover:bg-gray-800 dark:hover:bg-gray-100 text-white dark:text-gray-900 font-black py-3 rounded-xl transition-all shadow-sm text-sm">
               Log in to Submit Report
             </button>
+          ) : profile?.status === 'suspended' ? (
+            <div className="w-full bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-500 font-black py-3 rounded-xl text-center shadow-sm text-sm border border-red-200 dark:border-red-900/30">
+              Account Suspended - Cannot Submit Reports
+            </div>
           ) : (
-            <button 
-              type="submit" 
-              disabled={isSubmitting || !hasContactInfo || reportsLeft <= 0}
-              className="w-full bg-vangard-primary hover:bg-red-600 text-white font-black py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm"
-            >
+            <button type="submit" disabled={isSubmitting || !hasContactInfo || reportsLeft <= 0} className="w-full bg-vangard-primary hover:bg-red-600 text-white font-black py-3 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm text-sm">
               {isSubmitting ? 'Submitting...' : 'Submit Report'}
             </button>
           )}

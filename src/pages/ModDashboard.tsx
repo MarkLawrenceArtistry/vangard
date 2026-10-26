@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShieldCheck, Archive, Trash2, Plus } from 'lucide-react';
+import { ShieldCheck, Archive, Trash2, Plus, Mail, Ban, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ModDashboardProps {
-  tab: 'pending' | 'scammers' | 'disputes' | 'categories';
+  tab: 'pending' | 'scammers' | 'disputes' | 'categories' | 'users';
 }
 
 export default function ModDashboard({ tab }: ModDashboardProps) {
@@ -12,11 +12,11 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   const [isMod, setIsMod] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
   
-  // Data States
   const [reports, setReports] = useState<any[]>([]);
   const [scammers, setScammers] = useState<any[]>([]);
   const [disputes, setDisputes] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [newCategory, setNewCategory] = useState('');
   
   const navigate = useNavigate();
@@ -32,6 +32,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
       if (tab === 'scammers') fetchScammers();
       if (tab === 'disputes') fetchDisputes();
       if (tab === 'categories') fetchCategories();
+      if (tab === 'users') fetchUsers();
     }
   }, [tab, isMod]);
 
@@ -50,7 +51,6 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     setIsMod(true);
   };
 
-  // --- FETCHERS ---
   const fetchPendingReports = async () => {
     setLoading(true);
     const { data } = await supabase.from('reports').select('*').eq('status', 'pending').order('created_at', { ascending: true });
@@ -79,9 +79,15 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     setLoading(false);
   };
 
+  const fetchUsers = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+    setUsers(data || []);
+    setLoading(false);
+  };
+
   // --- ACTIONS ---
   
-  // 1. REPORT ACTIONS
   const handleRejectReport = async (reportId: string) => {
     const reason = prompt("Enter rejection reason:");
     if (!reason) return;
@@ -144,7 +150,6 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     setProcessingId(null);
   };
 
-  // 2. SCAMMER ACTIONS
   const handleToggleArchive = async (scammerId: string, currentStatus: boolean, name: string) => {
     const action = currentStatus ? "UNARCHIVE" : "ARCHIVE (HIDE)";
     if (!confirm(`Are you sure you want to ${action} the record for ${name}?`)) return;
@@ -155,16 +160,39 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     setProcessingId(null);
   };
 
-  // 3. DISPUTE ACTIONS
   const handleUpdateDispute = async (disputeId: string, newStatus: string) => {
     if (!confirm(`Mark this dispute as ${newStatus.toUpperCase()}?`)) return;
     setProcessingId(disputeId);
-    await supabase.from('disputes').update({ status: newStatus }).eq('id', disputeId);
-    setDisputes(disputes.map(d => d.id === disputeId ? { ...d, status: newStatus } : d));
+    try {
+      const { error } = await supabase.from('disputes').update({ status: newStatus }).eq('id', disputeId);
+      if (error) throw error;
+      setDisputes(disputes.map(d => d.id === disputeId ? { ...d, status: newStatus } : d));
+    } catch (err: any) {
+      alert("Error updating dispute: " + err.message);
+    }
     setProcessingId(null);
   };
 
-  // 4. CATEGORY ACTIONS
+  const handleAskForEvidence = async (dispute: any) => {
+    try {
+      setProcessingId(dispute.id);
+      const { error } = await supabase.from('disputes').update({ status: 'awaiting_evidence' }).eq('id', dispute.id);
+      if (error) throw error;
+      
+      setDisputes(disputes.map(d => d.id === dispute.id ? { ...d, status: 'awaiting_evidence' } : d));
+      
+      const subject = encodeURIComponent(`VANGARD Registry: Evidence Required for Dispute`);
+      const body = encodeURIComponent(
+        `Hello,\n\nWe are reviewing your dispute regarding the record for: ${dispute.scammers?.primary_name || 'the reported entity'}.\n\nTo proceed with an investigation, we require supporting evidence. Please reply directly to this email and attach any relevant screenshots, transaction receipts, or conversation logs.\n\nThank you,\nVANGARD Moderation Team`
+      );
+      
+      window.location.href = `mailto:${dispute.contact_email}?subject=${subject}&body=${body}`;
+    } catch (err: any) {
+      alert("Error: " + err.message);
+    }
+    setProcessingId(null);
+  };
+
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newCategory.trim()) return;
@@ -191,13 +219,41 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     setProcessingId(null);
   };
 
+  const handleUserAction = async (userId: string, action: 'ban' | 'suspend' | 'restore') => {
+    const actionText = action === 'ban' ? 'Archive/Ban' : action === 'suspend' ? 'Suspend for 7 Days' : 'Restore';
+    if (!confirm(`Are you sure you want to ${actionText} this user?`)) return;
+    
+    setProcessingId(userId);
+    try {
+      let updates: any = {};
+      if (action === 'ban') {
+        updates = { status: 'banned', suspended_until: null };
+      } else if (action === 'suspend') {
+        const suspendDate = new Date();
+        suspendDate.setDate(suspendDate.getDate() + 7);
+        updates = { status: 'suspended', suspended_until: suspendDate.toISOString() };
+      } else if (action === 'restore') {
+        updates = { status: 'active', suspended_until: null };
+      }
+
+      const { error } = await supabase.from('profiles').update(updates).eq('id', userId);
+      if (error) throw error;
+
+      setUsers(users.map(u => u.id === userId ? { ...u, ...updates } : u));
+    } catch (err: any) {
+      alert("Error updating user: " + err.message);
+    }
+    setProcessingId(null);
+  };
+
   if (!isMod) return null;
 
   const tabTitles = {
     pending: "Pending Reports Queue",
     scammers: "Verified Public Database",
     disputes: "Active Disputes",
-    categories: "Manage Niche Categories"
+    categories: "Manage Niche Categories",
+    users: "User Management"
   };
 
   return (
@@ -225,70 +281,55 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
 
       {!loading && (
         <>
-          {/* TAB 1: PENDING REPORTS */}
+          {/* TAB 1: PENDING REPORTS (NOW TABULAR) */}
           {tab === 'pending' && (
-            <div className="space-y-6">
-              {reports.length === 0 ? (
-                <div className="bg-white dark:bg-vangard-card p-12 rounded-3xl border border-gray-200 dark:border-gray-800 text-center shadow-sm">
-                  <h3 className="text-xl font-black text-gray-900 dark:text-gray-300">Queue is empty</h3>
-                  <p className="text-gray-500 font-medium mt-2">No pending reports to review at this time.</p>
-                </div>
-              ) : (
-                reports.map(report => (
-                  <div key={report.id} className="bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-700 rounded-3xl p-6 md:p-8 shadow-xl transition-all">
-                    <div className="flex justify-between items-start mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
-                      <div>
-                        <h3 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-3">
-                          {report.reported_name} 
-                          <span className="text-xs bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-md text-gray-600 dark:text-gray-300 font-bold tracking-wide uppercase">
-                            {report.category}
-                          </span>
-                        </h3>
-                      </div>
-                      <span className="text-sm font-bold text-gray-400">{new Date(report.created_at).toLocaleDateString()}</span>
-                    </div>
-                    
-                    <div className="grid md:grid-cols-2 gap-6 mb-6">
-                      <div className="space-y-3 text-sm font-medium">
-                        <div className="bg-gray-50 dark:bg-vangard-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
-                          <p className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase mb-1">Phone Number</p>
-                          <p className="text-gray-900 dark:text-gray-200">{report.phone_input || 'N/A'}</p>
-                        </div>
-                        <div className="bg-gray-50 dark:bg-vangard-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
-                          <p className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase mb-1">GCash Number</p>
-                          <p className="text-gray-900 dark:text-gray-200">{report.gcash_input || 'N/A'}</p>
-                        </div>
-                        <div className="bg-gray-50 dark:bg-vangard-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
-                          <p className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase mb-1">Facebook Link</p>
-                          <p className="text-blue-600 dark:text-blue-400 break-all">{report.facebook_input || 'N/A'}</p>
-                        </div>
-                      </div>
-                      <div className="bg-gray-50 dark:bg-vangard-dark p-5 rounded-2xl border border-gray-100 dark:border-gray-800 h-full max-h-64 overflow-y-auto">
-                        <span className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase block mb-2">Incident Description:</span>
-                        <p className="text-gray-800 dark:text-gray-300 text-sm leading-relaxed">{report.description}</p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-                      <button 
-                        onClick={() => handleApproveReport(report)} 
-                        disabled={processingId === report.id} 
-                        className="bg-green-100 text-green-700 dark:bg-green-600/20 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-600/30 px-6 py-3.5 rounded-xl font-black flex-1 transition-colors disabled:opacity-50"
-                      >
-                        Approve & Verify
-                      </button>
-                      <button 
-                        onClick={() => handleRejectReport(report.id)} 
-                        disabled={processingId === report.id} 
-                        className="bg-red-100 text-red-700 dark:bg-red-600/20 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-600/30 px-6 py-3.5 rounded-xl font-black flex-1 transition-colors disabled:opacity-50"
-                      >
-                        Reject Report
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+             <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
+                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs uppercase font-black text-gray-500 border-b border-gray-200 dark:border-gray-800 tracking-wider">
+                     <tr>
+                       <th className="px-6 py-5">Date / Target</th>
+                       <th className="px-6 py-5">Contact Details</th>
+                       <th className="px-6 py-5 min-w-[300px]">Incident Description</th>
+                       <th className="px-6 py-5 text-right">Actions</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                     {reports.length === 0 ? (
+                       <tr><td colSpan={4} className="text-center py-12 text-gray-500 font-bold">No pending reports found.</td></tr>
+                     ) : (
+                       reports.map(report => (
+                         <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                           <td className="px-6 py-5">
+                             <div className="text-[10px] font-bold text-gray-400 mb-1">{new Date(report.created_at).toLocaleDateString()}</div>
+                             <div className="font-black text-gray-900 dark:text-white text-base mb-1.5">{report.reported_name}</div>
+                             <span className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-md text-gray-600 dark:text-gray-300 font-bold uppercase tracking-wider">
+                               {report.category}
+                             </span>
+                           </td>
+                           <td className="px-6 py-5">
+                             <div className="text-xs font-medium space-y-1.5">
+                               {report.phone_input && report.phone_input !== 'N/A' && <div><span className="text-gray-400">Phone:</span> <span className="text-gray-900 dark:text-gray-200">{report.phone_input}</span></div>}
+                               {report.gcash_input && report.gcash_input !== 'N/A' && <div><span className="text-gray-400">GCash:</span> <span className="text-gray-900 dark:text-gray-200">{report.gcash_input}</span></div>}
+                               {report.facebook_input && report.facebook_input !== 'N/A' && <div><span className="text-gray-400">FB:</span> <a href={report.facebook_input} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">View Profile</a></div>}
+                             </div>
+                           </td>
+                           <td className="px-6 py-5">
+                             <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-vangard-dark p-3 rounded-xl border border-gray-100 dark:border-gray-800 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
+                               {report.description}
+                             </div>
+                           </td>
+                           <td className="px-6 py-5 text-right space-x-2 whitespace-nowrap align-top pt-8">
+                             <button onClick={() => handleApproveReport(report)} disabled={processingId === report.id} className="text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5"/> Verify</button>
+                             <button onClick={() => handleRejectReport(report.id)} disabled={processingId === report.id} className="text-red-700 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5"/> Reject</button>
+                           </td>
+                         </tr>
+                       ))
+                     )}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
           )}
 
           {/* TAB 2: VERIFIED SCAMMERS DATABASE */}
@@ -306,37 +347,41 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                     {scammers.map(scammer => (
-                       <tr key={scammer.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors ${scammer.is_archived ? 'opacity-50' : ''}`}>
-                         <td className="px-6 py-5 font-black text-gray-900 dark:text-white whitespace-nowrap text-base">{scammer.primary_name}</td>
-                         <td className="px-6 py-5">
-                           <div className="text-sm font-medium space-y-1">
-                             {scammer.phone_numbers.length > 0 && <div><span className="text-gray-400">Phone:</span> <span className="text-gray-900 dark:text-gray-200">{scammer.phone_numbers[0]}</span></div>}
-                             {scammer.gcash_numbers.length > 0 && <div><span className="text-gray-400">GCash:</span> <span className="text-gray-900 dark:text-gray-200">{scammer.gcash_numbers[0]}</span></div>}
-                           </div>
-                         </td>
-                         <td className="px-6 py-5 text-center">
-                            <span className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-500 px-3 py-1.5 rounded-lg font-black border border-red-100 dark:border-red-900/30">
-                              {scammer.verified_report_count}
-                            </span>
-                         </td>
-                         <td className="px-6 py-5 text-center">
-                           {scammer.is_archived 
-                             ? <span className="bg-yellow-100 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 px-3 py-1.5 rounded-full text-xs font-bold">Archived</span>
-                             : <span className="bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-500 px-3 py-1.5 rounded-full text-xs font-bold">Active</span>
-                           }
-                         </td>
-                         <td className="px-6 py-5 text-right">
-                           <button 
-                             onClick={() => handleToggleArchive(scammer.id, scammer.is_archived, scammer.primary_name)}
-                             disabled={processingId === scammer.id}
-                             className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-vangard-dark border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold transition-colors inline-flex items-center gap-2 text-xs disabled:opacity-50"
-                           >
-                             <Archive className="w-4 h-4" /> {scammer.is_archived ? 'Restore' : 'Archive'}
-                           </button>
-                         </td>
-                       </tr>
-                     ))}
+                     {scammers.length === 0 ? (
+                       <tr><td colSpan={5} className="text-center py-12 text-gray-500 font-bold">No verified scammers found.</td></tr>
+                     ) : (
+                       scammers.map(scammer => (
+                         <tr key={scammer.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors ${scammer.is_archived ? 'opacity-50' : ''}`}>
+                           <td className="px-6 py-5 font-black text-gray-900 dark:text-white whitespace-nowrap text-base">{scammer.primary_name}</td>
+                           <td className="px-6 py-5">
+                             <div className="text-sm font-medium space-y-1">
+                               {scammer.phone_numbers.length > 0 && <div><span className="text-gray-400">Phone:</span> <span className="text-gray-900 dark:text-gray-200">{scammer.phone_numbers[0]}</span></div>}
+                               {scammer.gcash_numbers.length > 0 && <div><span className="text-gray-400">GCash:</span> <span className="text-gray-900 dark:text-gray-200">{scammer.gcash_numbers[0]}</span></div>}
+                             </div>
+                           </td>
+                           <td className="px-6 py-5 text-center">
+                              <span className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-500 px-3 py-1.5 rounded-lg font-black border border-red-100 dark:border-red-900/30">
+                                {scammer.verified_report_count}
+                              </span>
+                           </td>
+                           <td className="px-6 py-5 text-center">
+                             {scammer.is_archived 
+                               ? <span className="bg-yellow-100 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 px-3 py-1.5 rounded-full text-xs font-bold">Archived</span>
+                               : <span className="bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-500 px-3 py-1.5 rounded-full text-xs font-bold">Active</span>
+                             }
+                           </td>
+                           <td className="px-6 py-5 text-right">
+                             <button 
+                               onClick={() => handleToggleArchive(scammer.id, scammer.is_archived, scammer.primary_name)}
+                               disabled={processingId === scammer.id}
+                               className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-vangard-dark border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold transition-colors inline-flex items-center gap-2 text-xs disabled:opacity-50"
+                             >
+                               <Archive className="w-4 h-4" /> {scammer.is_archived ? 'Restore' : 'Archive'}
+                             </button>
+                           </td>
+                         </tr>
+                       ))
+                     )}
                    </tbody>
                  </table>
                </div>
@@ -353,7 +398,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                        <th className="px-6 py-5">Date</th>
                        <th className="px-6 py-5">Target Record</th>
                        <th className="px-6 py-5">Contact Email</th>
-                       <th className="px-6 py-5 min-w-[250px]">Reasoning</th>
+                       <th className="px-6 py-5 min-w-[200px]">Reasoning</th>
                        <th className="px-6 py-5 text-center">Status</th>
                        <th className="px-6 py-5 text-right">Actions</th>
                      </tr>
@@ -367,18 +412,21 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                            <td className="px-6 py-5 whitespace-nowrap text-xs font-bold text-gray-500">{new Date(dispute.created_at).toLocaleDateString()}</td>
                            <td className="px-6 py-5 font-black text-gray-900 dark:text-white whitespace-nowrap">{dispute.scammers?.primary_name || 'Deleted Record'}</td>
                            <td className="px-6 py-5 text-blue-600 dark:text-blue-400 font-medium">{dispute.contact_email}</td>
-                           <td className="px-6 py-5 text-sm font-medium">{dispute.reason}</td>
-                           <td className="px-6 py-5 text-center uppercase text-xs font-black">
-                              <span className={
-                                dispute.status === 'pending' ? 'text-yellow-600 dark:text-yellow-500' :
-                                dispute.status === 'resolved' ? 'text-green-600 dark:text-green-500' : 'text-gray-500'
-                              }>{dispute.status}</span>
+                           <td className="px-6 py-5 text-xs font-medium">{dispute.reason}</td>
+                           <td className="px-6 py-5 text-center uppercase text-[10px] font-black tracking-wider">
+                              <span className={`px-2 py-1 rounded-md ${
+                                dispute.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500' :
+                                dispute.status === 'awaiting_evidence' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-500' :
+                                dispute.status === 'resolved' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-500' : 
+                                'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
+                              }`}>{dispute.status.replace('_', ' ')}</span>
                            </td>
                            <td className="px-6 py-5 text-right space-x-2 whitespace-nowrap">
-                             {dispute.status === 'pending' && (
+                             {(dispute.status === 'pending' || dispute.status === 'awaiting_evidence') && (
                                <>
-                                 <button onClick={() => handleUpdateDispute(dispute.id, 'resolved')} className="text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10 hover:bg-green-100 dark:hover:bg-green-500/20 px-4 py-2 rounded-xl font-bold transition-colors">Resolve</button>
-                                 <button onClick={() => handleUpdateDispute(dispute.id, 'rejected')} className="text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 px-4 py-2 rounded-xl font-bold transition-colors">Reject</button>
+                                 <button onClick={() => handleAskForEvidence(dispute)} disabled={processingId === dispute.id} className="text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Mail className="w-3 h-3"/> Ask Evidence</button>
+                                 <button onClick={() => handleUpdateDispute(dispute.id, 'resolved')} disabled={processingId === dispute.id} className="text-green-600 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs">Resolve</button>
+                                 <button onClick={() => handleUpdateDispute(dispute.id, 'rejected')} disabled={processingId === dispute.id} className="text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs">Reject</button>
                                </>
                              )}
                            </td>
@@ -443,6 +491,60 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
               </div>
             </div>
           )}
+
+          {/* TAB 5: USERS */}
+          {tab === 'users' && (
+             <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
+                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs uppercase font-black text-gray-500 border-b border-gray-200 dark:border-gray-800 tracking-wider">
+                     <tr>
+                       <th className="px-6 py-5">User ID</th>
+                       <th className="px-6 py-5">Role</th>
+                       <th className="px-6 py-5 text-center">Status</th>
+                       <th className="px-6 py-5 text-right">Actions</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                     {users.length === 0 ? (
+                       <tr><td colSpan={4} className="text-center py-12 text-gray-500 font-bold">No users found.</td></tr>
+                     ) : (
+                       users.map(user => (
+                         <tr key={user.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors ${user.status !== 'active' ? 'opacity-70' : ''}`}>
+                           <td className="px-6 py-5 font-black text-gray-900 dark:text-white text-xs truncate max-w-[200px]">{user.id}</td>
+                           <td className="px-6 py-5 uppercase text-[10px] font-bold tracking-wider">{user.role}</td>
+                           <td className="px-6 py-5 text-center">
+                             {user.status === 'banned' ? (
+                               <span className="bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-500 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider">Banned</span>
+                             ) : user.status === 'suspended' ? (
+                               <span className="bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider block">
+                                 Suspended<br/><span className="text-[8px]">Until {new Date(user.suspended_until).toLocaleDateString()}</span>
+                               </span>
+                             ) : (
+                               <span className="bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-500 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider">Active</span>
+                             )}
+                           </td>
+                           <td className="px-6 py-5 text-right space-x-2 whitespace-nowrap">
+                             {user.role !== 'admin' && ( // Prevent banning other admins
+                               user.status === 'active' ? (
+                                 <>
+                                   <button onClick={() => handleUserAction(user.id, 'suspend')} disabled={processingId === user.id} className="text-yellow-600 bg-yellow-50 hover:bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-500/10 dark:hover:bg-yellow-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Clock className="w-3 h-3"/> Suspend (7d)</button>
+                                   <button onClick={() => handleUserAction(user.id, 'ban')} disabled={processingId === user.id} className="text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Ban className="w-3 h-3"/> Ban</button>
+                                 </>
+                               ) : (
+                                 <button onClick={() => handleUserAction(user.id, 'restore')} disabled={processingId === user.id} className="text-green-600 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-4 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs">Restore</button>
+                               )
+                             )}
+                           </td>
+                         </tr>
+                       ))
+                     )}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+          )}
+
         </>
       )}
     </div>

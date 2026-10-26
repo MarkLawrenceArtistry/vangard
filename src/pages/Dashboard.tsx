@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { User, Clock, CheckCircle, XCircle, FileText } from 'lucide-react';
+import { User, Clock, CheckCircle, XCircle, FileText, Ban } from 'lucide-react';
 
 interface Report { id: string; reported_name: string; category: string; status: string; created_at: string; }
 
 export default function Dashboard() {
   const [session, setSession] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [reports, setReports] = useState<Report[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -14,7 +15,12 @@ export default function Dashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setSession(session);
-        const { data } = await supabase.from('reports').select('id, reported_name, category, status, created_at').order('created_at', { ascending: false });
+        
+        // Fetch Profile for Suspension check
+        const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+        setProfile(profileData);
+
+        const { data } = await supabase.from('reports').select('id, reported_name, category, status, created_at').eq('reporter_id', session.user.id).order('created_at', { ascending: false });
         setReports(data || []);
       }
       setLoading(false);
@@ -35,6 +41,20 @@ export default function Dashboard() {
 
   return (
     <div className="w-full mx-auto max-w-4xl">
+      
+      {/* SUSPENSION BANNER */}
+      {profile?.status === 'suspended' && (
+        <div className="mb-6 bg-red-50 dark:bg-red-500/10 border-l-4 border-red-500 p-5 rounded-r-xl shadow-sm flex items-start gap-4">
+          <Ban className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-black text-red-800 dark:text-red-400 text-lg">Account Suspended</h3>
+            <p className="text-red-700 dark:text-red-300 text-sm font-medium mt-1">
+              Your account has been suspended until <strong>{new Date(profile.suspended_until).toLocaleString()}</strong> due to a violation of our terms. You cannot submit new reports during this time.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-vangard-card p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm mb-8">
         <div>
           <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">

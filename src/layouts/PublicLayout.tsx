@@ -59,11 +59,15 @@ export default function PublicLayout() {
               {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
 
+            {/* CHANGED THIS BUTTON TO DISPLAY EMAIL */}
             <Link 
               to={session ? "/dashboard" : "/login"}
               className="flex items-center gap-1.5 bg-gray-900 text-white dark:bg-white dark:text-gray-900 px-3 py-1.5 rounded-lg font-bold text-xs hover:scale-105 transition-transform"
             >
-              <User className="w-3.5 h-3.5" /> {session ? 'Portal' : 'Sign In'}
+              <User className="w-3.5 h-3.5 flex-shrink-0" /> 
+              <span className="truncate max-w-[120px] md:max-w-[200px]">
+                {session ? session.user.email : 'Sign In'}
+              </span>
             </Link>
           </div>
         </div>
@@ -73,7 +77,6 @@ export default function PublicLayout() {
         <Outlet />
       </main>
 
-      {/* DISCLAIMER FOOTER */}
       <footer className="w-full bg-white dark:bg-vangard-card border-t border-gray-200 dark:border-gray-800 mt-auto">
         <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center gap-4 text-center md:text-left text-xs font-medium text-gray-500 dark:text-gray-400">
           <ShieldAlert className="w-6 h-6 text-gray-400 flex-shrink-0" />
