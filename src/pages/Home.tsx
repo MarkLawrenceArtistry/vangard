@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Search, ShieldAlert, ArrowRight, AlertOctagon, Phone, Smartphone, Link as LinkIcon, Calendar } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 export default function Home() {
@@ -46,27 +46,28 @@ export default function Home() {
 
   return (
     <div className="flex flex-col items-center pt-8 md:pt-20 pb-24 w-full">
-      <div className="text-center mb-8 flex flex-col items-center">
-        <div className="bg-red-50 dark:bg-red-500/10 p-4 rounded-3xl mb-5 shadow-sm border border-red-100 dark:border-red-900/20">
-          <ShieldAlert className="w-8 h-8 md:w-10 md:h-10 text-vangard-primary" />
+      <div className="text-center mb-6 flex flex-col items-center">
+        <div className="bg-red-50 dark:bg-red-500/10 p-3.5 rounded-3xl mb-4 shadow-sm border border-red-100 dark:border-red-900/20">
+          <ShieldAlert className="w-8 h-8 text-vangard-primary" />
         </div>
-        <h1 className="text-3xl md:text-5xl lg:text-6xl font-black tracking-tight mb-4 text-gray-900 dark:text-white">
+        {/* Reduced Font Sizes */}
+        <h1 className="text-2xl md:text-4xl lg:text-5xl font-black tracking-tight mb-3 text-gray-900 dark:text-white">
           Verify Before <br className="md:hidden" /> You Transact
         </h1>
-        <p className="text-gray-500 dark:text-gray-400 max-w-xl text-sm md:text-base font-medium leading-relaxed px-4">
+        <p className="text-gray-500 dark:text-gray-400 max-w-xl text-xs md:text-sm font-medium leading-relaxed px-4">
           The community-driven registry protecting online buyers and sellers. Search by Name, GCash, Phone, or Facebook Link.
         </p>
       </div>
 
-      <form onSubmit={handleSearch} className="w-full max-w-2xl relative mb-12">
+      <form onSubmit={handleSearch} className="w-full max-w-xl relative mb-10">
         <div className="relative group shadow-sm dark:shadow-2xl rounded-2xl transition-shadow">
-          <div className="absolute inset-y-0 left-0 flex items-center pl-5 pointer-events-none">
-            <Search className="w-5 h-5 text-gray-400 group-focus-within:text-vangard-primary transition-colors" />
+          <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+            <Search className="w-4 h-4 text-gray-400 group-focus-within:text-vangard-primary transition-colors" />
           </div>
-          
+          {/* Reduced Input size */}
           <input
             type="text"
-            className="block w-full p-4 pl-14 text-base md:text-lg bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all placeholder:text-gray-400 dark:text-white text-gray-900 font-medium"
+            className="block w-full p-3.5 pl-12 text-sm bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-2xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all placeholder:text-gray-400 dark:text-white text-gray-900 font-medium"
             placeholder="Search scammers..."
             value={searchQuery}
             onChange={handleInputChange}
@@ -76,7 +77,7 @@ export default function Home() {
           <button
             type="submit"
             disabled={isSearching}
-            className="absolute inset-y-2 right-2 px-4 md:px-6 bg-vangard-primary hover:bg-red-600 text-white font-bold rounded-xl transition-all disabled:opacity-50 flex items-center gap-2 text-sm md:text-base"
+            className="absolute inset-y-2 right-2 px-4 bg-vangard-primary hover:bg-red-600 text-white font-bold rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5 text-xs"
           >
             {isSearching ? 'Scanning...' : 'Search'}
           </button>
@@ -108,9 +109,12 @@ export default function Home() {
                       <Calendar className="w-3.5 h-3.5" /> Updated: {new Date(s.updated_at).toLocaleDateString()}
                     </div>
                   </div>
-                  <div className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-3 py-1.5 rounded-lg flex items-center gap-2 font-bold text-xs">
-                    <AlertOctagon className="w-3.5 h-3.5" />{s.verified_report_count} Flags
-                  </div>
+                  <Link 
+                    to={`/scammer/${s.id}`}
+                    className="bg-red-50 hover:bg-red-100 dark:bg-red-500/10 dark:hover:bg-red-500/20 text-red-600 dark:text-red-400 px-3 py-2 rounded-lg flex items-center gap-2 font-bold text-xs transition-colors border border-red-100 dark:border-red-900/30"
+                  >
+                    <AlertOctagon className="w-3.5 h-3.5" /> View {s.verified_report_count} Flags
+                  </Link>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm font-medium">
                   {s.phone_numbers.length > 0 && (

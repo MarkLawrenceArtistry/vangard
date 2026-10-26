@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShieldCheck, Archive } from 'lucide-react';
+import { ShieldCheck, Archive, Trash2, Plus } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ModDashboardProps {
-  tab: 'pending' | 'scammers' | 'disputes';
+  tab: 'pending' | 'scammers' | 'disputes' | 'categories';
 }
 
 export default function ModDashboard({ tab }: ModDashboardProps) {
@@ -16,6 +16,8 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   const [reports, setReports] = useState<any[]>([]);
   const [scammers, setScammers] = useState<any[]>([]);
   const [disputes, setDisputes] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [newCategory, setNewCategory] = useState('');
   
   const navigate = useNavigate();
 
@@ -29,12 +31,13 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
       if (tab === 'pending') fetchPendingReports();
       if (tab === 'scammers') fetchScammers();
       if (tab === 'disputes') fetchDisputes();
+      if (tab === 'categories') fetchCategories();
     }
   }, [tab, isMod]);
 
   const checkAccessAndFetch = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return navigate('/');
+    if (!session) return navigate('/login');
 
     const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
 
@@ -64,9 +67,15 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
 
   const fetchDisputes = async () => {
     setLoading(true);
-    // Join with scammers table to get the primary_name
     const { data } = await supabase.from('disputes').select('*, scammers(primary_name)').order('created_at', { ascending: false });
     setDisputes(data || []);
+    setLoading(false);
+  };
+
+  const fetchCategories = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('categories').select('*').order('name');
+    setCategories(data || []);
     setLoading(false);
   };
 
@@ -104,12 +113,10 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
 
       let scammerId;
 
-      // Check if scammer already exists
       if (orQuery.length > 0) {
         const { data: existingMatches } = await supabase.from('scammers').select('*').or(orQuery.join(',')).limit(1);
         if (existingMatches && existingMatches.length > 0) {
           scammerId = existingMatches[0].id;
-          // Increment verified reports and unarchive if previously archived
           await supabase.from('scammers').update({
             verified_report_count: existingMatches[0].verified_report_count + 1,
             is_archived: false, 
@@ -118,7 +125,6 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
         }
       }
 
-      // If new scammer, insert record
       if (!scammerId) {
         const { data: newScammer } = await supabase.from('scammers').insert({
           primary_name: report.reported_name,
@@ -130,7 +136,6 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
         scammerId = newScammer?.id;
       }
 
-      // Mark report as approved and link to scammer DB entry
       await supabase.from('reports').update({ status: 'approved', scammer_id: scammerId }).eq('id', report.id);
       setReports(reports.filter(r => r.id !== report.id));
     } catch (err: any) {
@@ -139,7 +144,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     setProcessingId(null);
   };
 
-  // 2. SCAMMER ACTIONS (ARCHIVE)
+  // 2. SCAMMER ACTIONS
   const handleToggleArchive = async (scammerId: string, currentStatus: boolean, name: string) => {
     const action = currentStatus ? "UNARCHIVE" : "ARCHIVE (HIDE)";
     if (!confirm(`Are you sure you want to ${action} the record for ${name}?`)) return;
@@ -159,12 +164,40 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     setProcessingId(null);
   };
 
+  // 4. CATEGORY ACTIONS
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategory.trim()) return;
+    try {
+      const { data, error } = await supabase.from('categories').insert([{ name: newCategory.trim() }]).select().single();
+      if (error) throw error;
+      setCategories([...categories, data].sort((a, b) => a.name.localeCompare(b.name)));
+      setNewCategory('');
+    } catch (err: any) { 
+      alert(err.message); 
+    }
+  };
+
+  const handleDeleteCategory = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete the category "${name}"?`)) return;
+    setProcessingId(id);
+    try {
+      const { error } = await supabase.from('categories').delete().eq('id', id);
+      if (error) throw error;
+      setCategories(categories.filter(c => c.id !== id));
+    } catch (err: any) {
+      alert(err.message);
+    }
+    setProcessingId(null);
+  };
+
   if (!isMod) return null;
 
   const tabTitles = {
     pending: "Pending Reports Queue",
     scammers: "Verified Public Database",
-    disputes: "Active Disputes"
+    disputes: "Active Disputes",
+    categories: "Manage Niche Categories"
   };
 
   return (
@@ -240,14 +273,14 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                       <button 
                         onClick={() => handleApproveReport(report)} 
                         disabled={processingId === report.id} 
-                        className="bg-green-100 text-green-700 dark:bg-green-600/20 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-600/30 px-6 py-3.5 rounded-xl font-black flex-1 transition-colors"
+                        className="bg-green-100 text-green-700 dark:bg-green-600/20 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-600/30 px-6 py-3.5 rounded-xl font-black flex-1 transition-colors disabled:opacity-50"
                       >
                         Approve & Verify
                       </button>
                       <button 
                         onClick={() => handleRejectReport(report.id)} 
                         disabled={processingId === report.id} 
-                        className="bg-red-100 text-red-700 dark:bg-red-600/20 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-600/30 px-6 py-3.5 rounded-xl font-black flex-1 transition-colors"
+                        className="bg-red-100 text-red-700 dark:bg-red-600/20 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-600/30 px-6 py-3.5 rounded-xl font-black flex-1 transition-colors disabled:opacity-50"
                       >
                         Reject Report
                       </button>
@@ -297,7 +330,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                            <button 
                              onClick={() => handleToggleArchive(scammer.id, scammer.is_archived, scammer.primary_name)}
                              disabled={processingId === scammer.id}
-                             className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-vangard-dark border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold transition-colors inline-flex items-center gap-2 text-xs"
+                             className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-vangard-dark border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold transition-colors inline-flex items-center gap-2 text-xs disabled:opacity-50"
                            >
                              <Archive className="w-4 h-4" /> {scammer.is_archived ? 'Restore' : 'Archive'}
                            </button>
@@ -356,6 +389,59 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                  </table>
                </div>
              </div>
+          )}
+
+          {/* TAB 4: CATEGORIES */}
+          {tab === 'categories' && (
+            <div className="max-w-3xl">
+              <form onSubmit={handleAddCategory} className="mb-8 flex flex-col md:flex-row gap-3">
+                <input 
+                  type="text" 
+                  value={newCategory} 
+                  onChange={(e) => setNewCategory(e.target.value)} 
+                  placeholder="Enter new category name..." 
+                  className="flex-1 p-4 bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-red-500/20 focus:border-vangard-primary outline-none text-gray-900 dark:text-white font-medium shadow-sm transition-all"
+                />
+                <button 
+                  type="submit" 
+                  className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:scale-105 px-8 py-4 rounded-2xl font-black flex justify-center items-center gap-2 shadow-lg transition-transform"
+                >
+                  <Plus className="w-5 h-5" /> Add Category
+                </button>
+              </form>
+
+              <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
+                <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
+                  <thead className="bg-gray-50 dark:bg-vangard-dark text-xs uppercase font-black text-gray-500 border-b border-gray-200 dark:border-gray-800 tracking-wider">
+                    <tr>
+                      <th className="px-8 py-5">Category Name</th>
+                      <th className="px-8 py-5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {categories.length === 0 ? (
+                       <tr><td colSpan={2} className="text-center py-10 text-gray-500 font-bold">No categories exist yet.</td></tr>
+                    ) : (
+                      categories.map(c => (
+                        <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                          <td className="px-8 py-5 font-black text-gray-900 dark:text-white text-base">{c.name}</td>
+                          <td className="px-8 py-5 text-right">
+                            <button 
+                              onClick={() => handleDeleteCategory(c.id, c.name)}
+                              disabled={processingId === c.id}
+                              className="text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 p-2.5 rounded-xl transition-colors disabled:opacity-50 inline-flex items-center shadow-sm"
+                              title="Delete Category"
+                            >
+                              <Trash2 className="w-5 h-5" />
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </>
       )}
