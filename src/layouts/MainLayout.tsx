@@ -1,17 +1,18 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink, useLocation } from 'react-router-dom';
-import { Search, ShieldAlert, User, Scale, Menu, X, Moon, Sun, ShieldCheck } from 'lucide-react';
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { User, Scale, Menu, X, Moon, Sun, Search, LogOut, Clock, Database, ShieldAlert } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function MainLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [isMod, setIsMod] = useState(false);
-  const location = useLocation(); // Used to close mobile sidebar on route change
+  const [session, setSession] = useState<any>(null);
+  
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  // Initialize theme & check mod status
   useEffect(() => {
-    // Check local storage for theme preference
     const savedTheme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     
@@ -23,9 +24,9 @@ export default function MainLayout() {
       document.documentElement.classList.remove('dark');
     }
 
-    // Check if user is Mod/Admin to show the Mod HQ tab
-    const checkMod = async () => {
+    const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
       if (session) {
         const { data } = await supabase.from('profiles').select('role').eq('id', session.user.id).single();
         if (data && (data.role === 'moderator' || data.role === 'admin')) {
@@ -33,10 +34,18 @@ export default function MainLayout() {
         }
       }
     };
-    checkMod();
+    
+    checkSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (!session) setIsMod(false);
+      checkSession();
+    });
+
+    return () => authListener.subscription.unsubscribe();
   }, []);
 
-  // Close sidebar on mobile when navigating
   useEffect(() => {
     setIsSidebarOpen(false);
   }, [location.pathname]);
@@ -53,114 +62,134 @@ export default function MainLayout() {
     }
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/');
+  };
+
+  // REDUCED PADDING AND SOFTER ACTIVE STATE
   const NavItem = ({ to, icon: Icon, label, alert }: { to: string, icon: any, label: string, alert?: boolean }) => (
     <NavLink 
       to={to} 
       className={({ isActive }) => `
-        flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 font-medium
+        flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 font-semibold text-sm
         ${isActive 
-          ? 'bg-vangard-primary text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]' 
-          : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white'
+          ? 'bg-red-50 text-vangard-primary dark:bg-red-500/10 dark:text-red-400' 
+          : 'text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 hover:text-gray-900 dark:hover:text-white'
         }
-        ${alert && !useLocation().pathname.includes(to) ? 'text-yellow-600 dark:text-yellow-500' : ''}
       `}
     >
-      <Icon className="w-5 h-5" />
-      <span>{label}</span>
+      <Icon className="w-[18px] h-[18px]" />
+      <span className="flex-1">{label}</span>
+      {alert && !useLocation().pathname.includes(to) && (
+        <span className="w-2 h-2 rounded-full bg-yellow-500 mr-2 shadow-[0_0_8px_rgba(234,179,8,0.8)]"></span>
+      )}
     </NavLink>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-vangard-dark text-gray-900 dark:text-white transition-colors duration-300 flex">
-      
-      {/* MOBILE TOP HEADER */}
-      <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white dark:bg-vangard-card border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 z-40 transition-colors duration-300">
+    <div className="min-h-screen flex">
+      {/* MOBILE HEADER */}
+      <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-vangard-card/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 z-40">
         <div className="flex items-center gap-2">
-          <div className="bg-vangard-primary p-1.5 rounded-lg">
-            <ShieldAlert className="text-white w-5 h-5" />
-          </div>
-          <span className="font-extrabold text-lg tracking-wide">VANGARD</span>
+          {/* IMAGE LOGO */}
+          <img src="/logo-placeholder.png" alt="Vangard" className="w-8 h-8 rounded-lg object-cover bg-red-100 dark:bg-red-900/30" />
+          <span className="font-black text-lg tracking-tight">VANGARD</span>
         </div>
-        <button 
-          onClick={() => setIsSidebarOpen(true)}
-          className="p-2 -mr-2 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-        >
+        <button onClick={() => setIsSidebarOpen(true)} className="p-2 -mr-2 text-gray-600 dark:text-gray-300 rounded-lg">
           <Menu className="w-6 h-6" />
         </button>
       </header>
 
-      {/* MOBILE BACKDROP OVERLAY */}
+      {/* MOBILE BACKDROP */}
       {isSidebarOpen && (
-        <div 
-          className="md:hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-40 transition-opacity"
-          onClick={() => setIsSidebarOpen(false)}
-        />
+        <div className="md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-40" onClick={() => setIsSidebarOpen(false)} />
       )}
 
-      {/* SIDEBAR (Desktop fixed, Mobile off-canvas) */}
+      {/* SIDEBAR */}
       <aside className={`
-        fixed top-0 bottom-0 left-0 w-[280px] bg-white dark:bg-vangard-card border-r border-gray-200 dark:border-gray-800 z-50 
+        fixed top-0 bottom-0 left-0 w-[260px] bg-white dark:bg-vangard-card border-r border-gray-100 dark:border-gray-800 z-50 
         flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] shadow-2xl md:shadow-none
         ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
       `}>
-        {/* Sidebar Header & Close Button */}
-        <div className="h-24 px-6 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
+        <div className="h-20 px-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-vangard-primary p-2 rounded-xl shadow-[0_4px_10px_rgba(239,68,68,0.3)]">
-              <ShieldAlert className="text-white w-6 h-6" />
-            </div>
-            <span className="font-extrabold text-2xl tracking-wide">VANGARD</span>
+            {/* IMAGE LOGO */}
+            <img src="/logo-placeholder.png" alt="Vangard" className="w-8 h-8 rounded-xl object-cover shadow-sm bg-red-100 dark:bg-red-900/30" />
+            <span className="font-black text-xl tracking-tight text-gray-900 dark:text-white">VANGARD</span>
           </div>
-          <button 
-            className="md:hidden p-2 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
-            onClick={() => setIsSidebarOpen(false)}
-          >
+          <button className="md:hidden p-2 text-gray-500 rounded-lg" onClick={() => setIsSidebarOpen(false)}>
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Sidebar Navigation Links */}
-        <div className="flex-1 overflow-y-auto py-6 px-4 space-y-2">
-          <NavItem to="/" icon={Search} label="Search Database" />
-          <NavItem to="/report" icon={ShieldAlert} label="File a Report" />
-          <NavItem to="/dashboard" icon={User} label="My Account" />
+        <div className="flex-1 overflow-y-auto py-4 px-4 space-y-6">
           
-          {isMod && (
-            <>
-              <div className="pt-4 pb-2 px-4">
-                <span className="text-xs font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Administration</span>
+          {/* PUBLIC TABS (Only 2) */}
+          <div>
+            <div className="px-3 mb-2">
+              <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Public</span>
+            </div>
+            <div className="space-y-1">
+              <NavItem to="/" icon={Search} label="Search Engine" />
+              <NavItem to="/report" icon={ShieldAlert} label="File a Report" />
+            </div>
+          </div>
+
+          {/* INSIDE: ADMINISTRATION / USER QUEUE (Requires Login) */}
+          {session && (
+            <div>
+              <div className="px-3 mb-2">
+                <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Personal</span>
               </div>
-              <NavItem to="/mod" icon={ShieldCheck} label="Moderator HQ" alert />
-            </>
+              <div className="space-y-1">
+                <NavItem to="/dashboard" icon={User} label="My Dashboard" />
+              </div>
+            </div>
+          )}
+
+          {isMod && (
+            <div>
+              <div className="px-3 mb-2 flex items-center gap-2">
+                <span className="text-[10px] font-bold text-vangard-primary uppercase tracking-widest">Administration</span>
+              </div>
+              <div className="space-y-1 border-l-2 border-red-100 dark:border-red-900/30 ml-2 pl-2">
+                <NavItem to="/mod/pending" icon={Clock} label="Pending Queue" alert />
+                <NavItem to="/mod/database" icon={Database} label="Verified Database" />
+                <NavItem to="/mod/disputes" icon={Scale} label="Disputes" />
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Sidebar Footer (Theme Toggle & Legal) */}
-        <div className="p-4 border-t border-gray-100 dark:border-gray-800">
+        <div className="p-4 border-t border-gray-50 dark:border-gray-800 space-y-2">
+          {session && (
+            <button 
+              onClick={handleSignOut}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-sm font-bold"
+            >
+              <LogOut className="w-4 h-4" /> Sign Out
+            </button>
+          )}
+          
           <button 
             onClick={toggleTheme}
-            className="w-full flex items-center justify-between px-4 py-3 rounded-2xl bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors text-sm font-medium"
+            className="w-full flex items-center justify-between px-4 py-2.5 rounded-xl bg-gray-50 dark:bg-gray-800/50 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-sm font-medium text-gray-600 dark:text-gray-400"
           >
             <span className="flex items-center gap-3">
-              {isDark ? <Sun className="w-4 h-4 text-yellow-500" /> : <Moon className="w-4 h-4 text-blue-600" />}
+              {isDark ? <Sun className="w-4 h-4 text-yellow-500" /> : <Moon className="w-4 h-4 text-blue-500" />}
               {isDark ? 'Light Mode' : 'Dark Mode'}
             </span>
           </button>
-          
-          <div className="mt-6 px-2 flex items-start gap-2 text-[10px] text-gray-400 dark:text-gray-500 leading-tight">
-            <Scale className="w-4 h-4 flex-shrink-0" />
-            <p>VANGARD is a community registry. Reports are user-submitted allegations, not legal findings.</p>
-          </div>
         </div>
       </aside>
 
-      {/* MAIN CONTENT AREA */}
-      <main className="flex-1 md:ml-[280px] pt-16 md:pt-0 min-h-screen w-full transition-colors duration-300">
+      {/* CONTENT AREA */}
+      <main className="flex-1 md:ml-[260px] pt-16 md:pt-0 min-h-screen w-full">
         <div className="max-w-5xl mx-auto p-4 md:p-8 pb-20">
           <Outlet />
         </div>
       </main>
-      
     </div>
   );
 }

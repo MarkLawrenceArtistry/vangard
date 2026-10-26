@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { UploadCloud, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import AuthModal from '../components/AuthModal';
 import { useNavigate } from 'react-router-dom';
 
 type ReportFormData = {
@@ -15,112 +14,109 @@ type ReportFormData = {
 };
 
 export default function ReportForm() {
-  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [session, setSession] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const navigate = useNavigate();
   
   const { register, handleSubmit, watch, formState: { errors } } = useForm<ReportFormData>();
-
-  // Watch fields for cross-validation (Needs either phone or FB)
   const phone = watch('phone');
   const facebook = watch('facebook');
 
-  const onSubmit = async (data: ReportFormData) => {
-    // 1. Check if user is logged in
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    if (!session) {
-      // User is not logged in! Show the modal and stop submission.
-      setShowAuthModal(true);
-      return;
-    }
+  // We still fetch session just to attach their ID if they happen to be logged in, 
+  // but we DO NOT block submission if they are not logged in.
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+  }, []);
 
-    // 2. If logged in, proceed with submission
+  const onSubmit = async (data: ReportFormData) => {
     setIsSubmitting(true);
     try {
       const { error } = await supabase.from('reports').insert({
-        reporter_id: session.user.id,
+        reporter_id: session?.user?.id || null, // Allows anonymous submission
         reported_name: data.scammerName,
         phone_input: data.phone,
         gcash_input: data.gcash,
         facebook_input: data.facebook,
         category: data.category,
         description: data.description,
-        status: 'pending' // Enforces the Mod review queue
+        status: 'pending'
       });
-
+      
       if (error) throw error;
       
-      alert("Report submitted successfully! It is now pending review.");
-      navigate('/dashboard'); // Redirect to their tracking dashboard
+      alert("Report submitted successfully! Our moderators will review it shortly.");
+      
+      // If logged in, go to dashboard. If anonymous, go to home page.
+      if (session) {
+        navigate('/dashboard'); 
+      } else {
+        navigate('/');
+      }
+      
     } catch (err: any) {
-      alert("Error submitting report: " + err.message);
+      alert("Error: " + err.message);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return (
-    <div className="p-4 max-w-2xl mx-auto mb-10">
-      <div className="mb-6 border-l-4 border-vangard-primary pl-4 py-2 bg-vangard-primary/10 rounded-r-lg">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <AlertTriangle className="text-vangard-primary" /> File a Scam Report
+    <div className="w-full mx-auto max-w-2xl">
+      <div className="mb-6 border-l-4 border-vangard-primary pl-4 py-3 bg-white dark:bg-vangard-card shadow-sm rounded-r-2xl border-y border-r border-gray-200 dark:border-gray-800">
+        <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+          <AlertTriangle className="text-vangard-primary w-6 h-6 md:w-7 md:h-7" /> File a Scam Report
         </h1>
-        <p className="text-gray-400 text-sm mt-1">
+        <p className="text-gray-500 dark:text-gray-400 font-medium text-xs md:text-sm mt-1">
           Your report will be reviewed by moderators. False reporting will result in a permanent ban.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6 bg-vangard-card p-6 rounded-2xl border border-gray-800 shadow-xl">
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5 bg-white dark:bg-vangard-card p-5 md:p-8 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm">
         
-        {/* Scammer Name */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Scammer Name / Alias *</label>
+          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Scammer Name / Alias *</label>
           <input 
             {...register("scammerName", { required: "Name is required" })}
-            className="w-full p-3 bg-vangard-dark border border-gray-700 rounded-xl focus:ring-2 focus:ring-vangard-accent outline-none"
+            className="w-full p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all text-sm font-medium"
             placeholder="e.g. Juan Dela Cruz"
           />
-          {errors.scammerName && <span className="text-red-400 text-xs mt-1">{errors.scammerName.message}</span>}
+          {errors.scammerName && <span className="text-red-500 text-xs mt-1 font-bold">{errors.scammerName.message}</span>}
         </div>
 
-        {/* Contact Info Group */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">Phone Number</label>
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Phone Number</label>
             <input 
               {...register("phone")}
-              className="w-full p-3 bg-vangard-dark border border-gray-700 rounded-xl focus:ring-2 focus:ring-vangard-accent outline-none"
+              className="w-full p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all text-sm font-medium"
               placeholder="e.g. 09123456789"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-300 mb-1">GCash Number</label>
+            <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">GCash Number</label>
             <input 
               {...register("gcash")}
-              className="w-full p-3 bg-vangard-dark border border-gray-700 rounded-xl focus:ring-2 focus:ring-vangard-accent outline-none"
+              className="w-full p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all text-sm font-medium"
               placeholder="Leave blank if unknown"
             />
           </div>
         </div>
 
-        {/* Facebook Link */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Facebook Profile URL</label>
+          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Facebook Profile URL</label>
           <input 
             {...register("facebook")}
-            className="w-full p-3 bg-vangard-dark border border-gray-700 rounded-xl focus:ring-2 focus:ring-vangard-accent outline-none"
+            className="w-full p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all text-sm font-medium"
             placeholder="https://facebook.com/username"
           />
-          {(!phone && !facebook) && <span className="text-orange-400 text-xs mt-1">Please provide either a Phone number or Facebook link.</span>}
+          {(!phone && !facebook) && <span className="text-orange-500 text-xs mt-1 font-bold block">Please provide either a Phone number or Facebook link.</span>}
         </div>
 
-        {/* Category */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Niche Category *</label>
+          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Niche Category *</label>
           <select 
             {...register("category", { required: true })}
-            className="w-full p-3 bg-vangard-dark border border-gray-700 rounded-xl focus:ring-2 focus:ring-vangard-accent outline-none"
+            className="w-full p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all text-sm font-medium"
           >
             <option value="MLBB">Mobile Legends (MLBB)</option>
             <option value="Genshin">Genshin Impact</option>
@@ -131,49 +127,29 @@ export default function ReportForm() {
           </select>
         </div>
 
-        {/* Description */}
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Incident Description *</label>
+          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1.5">Incident Description *</label>
           <textarea 
             {...register("description", { 
               required: "Description is required",
-              minLength: { value: 50, message: "Please provide more details (minimum 50 characters)" }
+              minLength: { value: 50, message: "Please provide more details (min 50 chars)" }
             })}
-            className="w-full p-3 bg-vangard-dark border border-gray-700 rounded-xl focus:ring-2 focus:ring-vangard-accent outline-none h-32 resize-none"
-            placeholder="Explain how the scam happened. Include details about the transaction..."
+            className="w-full p-3.5 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all text-sm font-medium h-32 resize-none"
+            placeholder="Explain how the scam happened..."
           />
-          {errors.description && <span className="text-red-400 text-xs mt-1">{errors.description.message}</span>}
+          {errors.description && <span className="text-red-500 text-xs mt-1 font-bold">{errors.description.message}</span>}
         </div>
 
-        {/* File Upload UI Mock (Actual upload logic to be built later) */}
-        <div>
-          <label className="block text-sm font-medium text-gray-300 mb-1">Evidence Attachments (Max 5)</label>
-          <div className="w-full p-6 border-2 border-dashed border-gray-700 rounded-xl flex flex-col items-center justify-center text-gray-500 hover:border-vangard-accent hover:text-gray-300 transition-colors cursor-pointer bg-vangard-dark">
-            <UploadCloud className="w-8 h-8 mb-2" />
-            <span className="text-sm font-medium">Tap to upload screenshots</span>
-            <span className="text-xs mt-1">(Cloudinary integration coming in next step)</span>
-          </div>
+        <div className="pt-2">
+          <button 
+            type="submit" 
+            disabled={isSubmitting || (!phone && !facebook)}
+            className="w-full bg-vangard-primary hover:bg-red-600 text-white font-black py-4 rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md text-base"
+          >
+            {isSubmitting ? 'Submitting...' : 'Submit Report'}
+          </button>
         </div>
-
-        <button 
-          type="submit" 
-          disabled={isSubmitting || (!phone && !facebook)}
-          className="w-full bg-vangard-primary hover:bg-red-600 text-white font-bold py-4 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-        >
-          {isSubmitting ? 'Submitting...' : 'Submit Report'}
-        </button>
       </form>
-
-      {/* The Auth Modal */}
-      <AuthModal 
-        isOpen={showAuthModal} 
-        onClose={() => setShowAuthModal(false)} 
-        onSuccess={() => {
-          setShowAuthModal(false);
-          // If login is successful, automatically trigger the form submit again
-          handleSubmit(onSubmit)(); 
-        }} 
-      />
     </div>
   );
 }

@@ -1,21 +1,32 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
 @import "tailwindcss";
 
-/* This line tells Tailwind v4 to apply `dark:` classes when the HTML tag has the class "dark" */
-@variant dark (&:is(.dark *));
+/* Tailwind v4 manual dark mode variant */
+@custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-vangard-primary: #ef4444;
+  --color-vangard-primary: #e61030;
   --color-vangard-dark: #0a0a0a;
-  --color-vangard-card: #171717;
-  --color-vangard-accent: #dc2626; 
+  --color-vangard-card: #141414; /* Slightly lighter than the background for cards */
+  --color-vangard-accent: #ff2a4b; 
+  --font-sans: "Inter", sans-serif;
+}
+
+/* Force base backgrounds to prevent any white gaps */
+html, body, #root {
+  @apply min-h-screen h-full w-full m-0 p-0;
 }
 
 body {
-  /* Smooth transition for theme switching */
-  @apply transition-colors duration-300;
+  font-family: var(--font-sans);
+  @apply antialiased transition-colors duration-300 bg-gray-50 text-gray-900;
 }
 
-/* Custom scrollbar hiding utility */
+/* Apply strict dark mode background globally */
+html.dark body {
+  @apply bg-vangard-dark text-white;
+}
+
 .hide-scrollbar::-webkit-scrollbar {
   display: none;
 }

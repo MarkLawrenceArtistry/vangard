@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShieldCheck, Check, X, Clock, ExternalLink, Database, Scale, Archive, Search } from 'lucide-react';
+import { ShieldCheck, Archive } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
-export default function ModDashboard() {
-  const [activeTab, setActiveTab] = useState<'pending' | 'scammers' | 'disputes'>('pending');
+interface ModDashboardProps {
+  tab: 'pending' | 'scammers' | 'disputes';
+}
+
+export default function ModDashboard({ tab }: ModDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [isMod, setIsMod] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -18,15 +21,16 @@ export default function ModDashboard() {
 
   useEffect(() => {
     checkAccessAndFetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (isMod) {
-      if (activeTab === 'pending') fetchPendingReports();
-      if (activeTab === 'scammers') fetchScammers();
-      if (activeTab === 'disputes') fetchDisputes();
+      if (tab === 'pending') fetchPendingReports();
+      if (tab === 'scammers') fetchScammers();
+      if (tab === 'disputes') fetchDisputes();
     }
-  }, [activeTab, isMod]);
+  }, [tab, isMod]);
 
   const checkAccessAndFetch = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -41,7 +45,6 @@ export default function ModDashboard() {
     }
 
     setIsMod(true);
-    fetchPendingReports();
   };
 
   // --- FETCHERS ---
@@ -101,18 +104,21 @@ export default function ModDashboard() {
 
       let scammerId;
 
+      // Check if scammer already exists
       if (orQuery.length > 0) {
         const { data: existingMatches } = await supabase.from('scammers').select('*').or(orQuery.join(',')).limit(1);
         if (existingMatches && existingMatches.length > 0) {
           scammerId = existingMatches[0].id;
+          // Increment verified reports and unarchive if previously archived
           await supabase.from('scammers').update({
             verified_report_count: existingMatches[0].verified_report_count + 1,
-            is_archived: false, // Unarchive if they scam again
+            is_archived: false, 
             updated_at: new Date().toISOString()
           }).eq('id', scammerId);
         }
       }
 
+      // If new scammer, insert record
       if (!scammerId) {
         const { data: newScammer } = await supabase.from('scammers').insert({
           primary_name: report.reported_name,
@@ -124,6 +130,7 @@ export default function ModDashboard() {
         scammerId = newScammer?.id;
       }
 
+      // Mark report as approved and link to scammer DB entry
       await supabase.from('reports').update({ status: 'approved', scammer_id: scammerId }).eq('id', report.id);
       setReports(reports.filter(r => r.id !== report.id));
     } catch (err: any) {
@@ -154,65 +161,96 @@ export default function ModDashboard() {
 
   if (!isMod) return null;
 
+  const tabTitles = {
+    pending: "Pending Reports Queue",
+    scammers: "Verified Public Database",
+    disputes: "Active Disputes"
+  };
+
   return (
-    <div className="p-4 w-full max-w-6xl mx-auto mb-20 md:mb-10">
+    <div className="w-full mx-auto max-w-6xl animate-in fade-in duration-500">
       
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-gray-800 pb-6">
-        <div className="flex items-center gap-3">
-          <div className="bg-vangard-primary/20 p-3 rounded-xl border border-vangard-primary/30">
-            <ShieldCheck className="w-8 h-8 text-vangard-primary" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">Moderator HQ</h1>
-            <p className="text-gray-400 text-sm">Manage reports, records, and disputes.</p>
-          </div>
+      <div className="flex items-center gap-4 mb-8 border-b border-gray-200 dark:border-gray-800 pb-6">
+        <div className="bg-red-50 dark:bg-vangard-primary/10 p-3.5 rounded-2xl border border-red-100 dark:border-vangard-primary/20 shadow-sm">
+          <ShieldCheck className="w-8 h-8 text-vangard-primary" />
+        </div>
+        <div>
+          <h1 className="text-3xl font-black text-gray-900 dark:text-white">Moderator HQ</h1>
+          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-1 uppercase tracking-wider">
+            Viewing: <span className="text-vangard-primary">{tabTitles[tab]}</span>
+          </p>
         </div>
       </div>
 
-      {/* Tabs Navigation */}
-      <div className="flex overflow-x-auto gap-2 mb-6 hide-scrollbar">
-        <button onClick={() => setActiveTab('pending')} className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold whitespace-nowrap transition-colors ${activeTab === 'pending' ? 'bg-vangard-card text-vangard-primary border border-vangard-primary/30' : 'bg-vangard-dark text-gray-500 hover:bg-gray-800 border border-gray-800'}`}>
-          <Clock className="w-5 h-5" /> Pending Queue
-        </button>
-        <button onClick={() => setActiveTab('scammers')} className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold whitespace-nowrap transition-colors ${activeTab === 'scammers' ? 'bg-vangard-card text-blue-400 border border-blue-400/30' : 'bg-vangard-dark text-gray-500 hover:bg-gray-800 border border-gray-800'}`}>
-          <Database className="w-5 h-5" /> Verified Database
-        </button>
-        <button onClick={() => setActiveTab('disputes')} className={`flex items-center gap-2 px-6 py-3 rounded-xl font-bold whitespace-nowrap transition-colors ${activeTab === 'disputes' ? 'bg-vangard-card text-yellow-400 border border-yellow-400/30' : 'bg-vangard-dark text-gray-500 hover:bg-gray-800 border border-gray-800'}`}>
-          <Scale className="w-5 h-5" /> Active Disputes
-        </button>
-      </div>
-
-      {loading && <div className="p-10 text-center text-gray-400">Loading data...</div>}
+      {loading && (
+        <div className="p-20 flex flex-col items-center justify-center text-gray-400">
+          <div className="w-10 h-10 border-4 border-gray-200 dark:border-gray-700 border-t-vangard-primary rounded-full animate-spin mb-4"></div>
+          <span className="font-bold animate-pulse">Loading secure data...</span>
+        </div>
+      )}
 
       {!loading && (
         <>
           {/* TAB 1: PENDING REPORTS */}
-          {activeTab === 'pending' && (
-            <div className="space-y-4">
+          {tab === 'pending' && (
+            <div className="space-y-6">
               {reports.length === 0 ? (
-                <div className="bg-vangard-card p-10 rounded-2xl border border-gray-800 text-center text-gray-500">No pending reports.</div>
+                <div className="bg-white dark:bg-vangard-card p-12 rounded-3xl border border-gray-200 dark:border-gray-800 text-center shadow-sm">
+                  <h3 className="text-xl font-black text-gray-900 dark:text-gray-300">Queue is empty</h3>
+                  <p className="text-gray-500 font-medium mt-2">No pending reports to review at this time.</p>
+                </div>
               ) : (
                 reports.map(report => (
-                  <div key={report.id} className="bg-vangard-card border border-gray-700 rounded-2xl p-6 shadow-lg">
-                    <div className="flex justify-between items-start mb-4">
-                      <h3 className="text-xl font-bold">{report.reported_name} <span className="text-xs bg-gray-800 px-2 py-1 rounded text-gray-300 ml-2">{report.category}</span></h3>
-                      <span className="text-xs text-gray-500">{new Date(report.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <div className="text-sm text-gray-300 grid md:grid-cols-2 gap-4 mb-4">
+                  <div key={report.id} className="bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-700 rounded-3xl p-6 md:p-8 shadow-xl transition-all">
+                    <div className="flex justify-between items-start mb-6 border-b border-gray-100 dark:border-gray-800 pb-4">
                       <div>
-                        <p><span className="text-gray-500">Phone:</span> {report.phone_input || 'N/A'}</p>
-                        <p><span className="text-gray-500">GCash:</span> {report.gcash_input || 'N/A'}</p>
-                        <p><span className="text-gray-500">FB:</span> {report.facebook_input || 'N/A'}</p>
+                        <h3 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-3">
+                          {report.reported_name} 
+                          <span className="text-xs bg-gray-100 dark:bg-gray-800 px-3 py-1 rounded-md text-gray-600 dark:text-gray-300 font-bold tracking-wide uppercase">
+                            {report.category}
+                          </span>
+                        </h3>
                       </div>
-                      <div className="bg-vangard-dark p-3 rounded-xl border border-gray-800 h-24 overflow-y-auto">
-                        <span className="text-gray-500 text-xs block mb-1">Description:</span>
-                        {report.description}
+                      <span className="text-sm font-bold text-gray-400">{new Date(report.created_at).toLocaleDateString()}</span>
+                    </div>
+                    
+                    <div className="grid md:grid-cols-2 gap-6 mb-6">
+                      <div className="space-y-3 text-sm font-medium">
+                        <div className="bg-gray-50 dark:bg-vangard-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
+                          <p className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase mb-1">Phone Number</p>
+                          <p className="text-gray-900 dark:text-gray-200">{report.phone_input || 'N/A'}</p>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-vangard-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
+                          <p className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase mb-1">GCash Number</p>
+                          <p className="text-gray-900 dark:text-gray-200">{report.gcash_input || 'N/A'}</p>
+                        </div>
+                        <div className="bg-gray-50 dark:bg-vangard-dark p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
+                          <p className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase mb-1">Facebook Link</p>
+                          <p className="text-blue-600 dark:text-blue-400 break-all">{report.facebook_input || 'N/A'}</p>
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 dark:bg-vangard-dark p-5 rounded-2xl border border-gray-100 dark:border-gray-800 h-full max-h-64 overflow-y-auto">
+                        <span className="text-gray-500 dark:text-gray-400 text-xs font-bold uppercase block mb-2">Incident Description:</span>
+                        <p className="text-gray-800 dark:text-gray-300 text-sm leading-relaxed">{report.description}</p>
                       </div>
                     </div>
-                    <div className="flex gap-2">
-                      <button onClick={() => handleApproveReport(report)} disabled={processingId === report.id} className="bg-green-600/20 text-green-500 px-4 py-2 rounded-lg font-bold flex-1">Approve</button>
-                      <button onClick={() => handleRejectReport(report.id)} disabled={processingId === report.id} className="bg-red-600/20 text-red-500 px-4 py-2 rounded-lg font-bold flex-1">Reject</button>
+                    
+                    <div className="flex gap-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                      <button 
+                        onClick={() => handleApproveReport(report)} 
+                        disabled={processingId === report.id} 
+                        className="bg-green-100 text-green-700 dark:bg-green-600/20 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-600/30 px-6 py-3.5 rounded-xl font-black flex-1 transition-colors"
+                      >
+                        Approve & Verify
+                      </button>
+                      <button 
+                        onClick={() => handleRejectReport(report.id)} 
+                        disabled={processingId === report.id} 
+                        className="bg-red-100 text-red-700 dark:bg-red-600/20 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-600/30 px-6 py-3.5 rounded-xl font-black flex-1 transition-colors"
+                      >
+                        Reject Report
+                      </button>
                     </div>
                   </div>
                 ))
@@ -221,96 +259,102 @@ export default function ModDashboard() {
           )}
 
           {/* TAB 2: VERIFIED SCAMMERS DATABASE */}
-          {activeTab === 'scammers' && (
-             <div className="bg-vangard-card rounded-2xl border border-gray-800 overflow-hidden overflow-x-auto shadow-lg">
-               <table className="w-full text-left text-sm text-gray-300">
-                 <thead className="bg-vangard-dark text-xs uppercase text-gray-500 border-b border-gray-800">
-                   <tr>
-                     <th className="px-6 py-4">Name</th>
-                     <th className="px-6 py-4">Contact Info</th>
-                     <th className="px-6 py-4 text-center">Flags</th>
-                     <th className="px-6 py-4 text-center">Status</th>
-                     <th className="px-6 py-4 text-right">Actions</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-gray-800">
-                   {scammers.map(scammer => (
-                     <tr key={scammer.id} className={`hover:bg-gray-800/30 transition-colors ${scammer.is_archived ? 'opacity-50' : ''}`}>
-                       <td className="px-6 py-4 font-bold text-white whitespace-nowrap">{scammer.primary_name}</td>
-                       <td className="px-6 py-4">
-                         <div className="text-xs">
-                           {scammer.phone_numbers.length > 0 && <div><span className="text-gray-500">Phone:</span> {scammer.phone_numbers[0]}</div>}
-                           {scammer.gcash_numbers.length > 0 && <div><span className="text-gray-500">GCash:</span> {scammer.gcash_numbers[0]}</div>}
-                         </div>
-                       </td>
-                       <td className="px-6 py-4 text-center">
-                          <span className="bg-red-500/10 text-red-500 px-2 py-1 rounded font-bold">{scammer.verified_report_count}</span>
-                       </td>
-                       <td className="px-6 py-4 text-center">
-                         {scammer.is_archived 
-                           ? <span className="bg-yellow-500/10 text-yellow-500 px-2 py-1 rounded-full text-xs">Archived</span>
-                           : <span className="bg-green-500/10 text-green-500 px-2 py-1 rounded-full text-xs">Active (Public)</span>
-                         }
-                       </td>
-                       <td className="px-6 py-4 text-right">
-                         <button 
-                           onClick={() => handleToggleArchive(scammer.id, scammer.is_archived, scammer.primary_name)}
-                           disabled={processingId === scammer.id}
-                           className="text-gray-400 hover:text-white bg-vangard-dark border border-gray-700 px-3 py-1 rounded-lg transition-colors inline-flex items-center gap-1"
-                         >
-                           <Archive className="w-4 h-4" /> {scammer.is_archived ? 'Restore' : 'Archive'}
-                         </button>
-                       </td>
+          {tab === 'scammers' && (
+             <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
+                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs uppercase font-black text-gray-500 border-b border-gray-200 dark:border-gray-800 tracking-wider">
+                     <tr>
+                       <th className="px-6 py-5">Name</th>
+                       <th className="px-6 py-5">Contact Info</th>
+                       <th className="px-6 py-5 text-center">Flags</th>
+                       <th className="px-6 py-5 text-center">Status</th>
+                       <th className="px-6 py-5 text-right">Actions</th>
                      </tr>
-                   ))}
-                 </tbody>
-               </table>
+                   </thead>
+                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                     {scammers.map(scammer => (
+                       <tr key={scammer.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors ${scammer.is_archived ? 'opacity-50' : ''}`}>
+                         <td className="px-6 py-5 font-black text-gray-900 dark:text-white whitespace-nowrap text-base">{scammer.primary_name}</td>
+                         <td className="px-6 py-5">
+                           <div className="text-sm font-medium space-y-1">
+                             {scammer.phone_numbers.length > 0 && <div><span className="text-gray-400">Phone:</span> <span className="text-gray-900 dark:text-gray-200">{scammer.phone_numbers[0]}</span></div>}
+                             {scammer.gcash_numbers.length > 0 && <div><span className="text-gray-400">GCash:</span> <span className="text-gray-900 dark:text-gray-200">{scammer.gcash_numbers[0]}</span></div>}
+                           </div>
+                         </td>
+                         <td className="px-6 py-5 text-center">
+                            <span className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-500 px-3 py-1.5 rounded-lg font-black border border-red-100 dark:border-red-900/30">
+                              {scammer.verified_report_count}
+                            </span>
+                         </td>
+                         <td className="px-6 py-5 text-center">
+                           {scammer.is_archived 
+                             ? <span className="bg-yellow-100 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 px-3 py-1.5 rounded-full text-xs font-bold">Archived</span>
+                             : <span className="bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-500 px-3 py-1.5 rounded-full text-xs font-bold">Active</span>
+                           }
+                         </td>
+                         <td className="px-6 py-5 text-right">
+                           <button 
+                             onClick={() => handleToggleArchive(scammer.id, scammer.is_archived, scammer.primary_name)}
+                             disabled={processingId === scammer.id}
+                             className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-vangard-dark border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold transition-colors inline-flex items-center gap-2 text-xs"
+                           >
+                             <Archive className="w-4 h-4" /> {scammer.is_archived ? 'Restore' : 'Archive'}
+                           </button>
+                         </td>
+                       </tr>
+                     ))}
+                   </tbody>
+                 </table>
+               </div>
              </div>
           )}
 
           {/* TAB 3: DISPUTES */}
-          {activeTab === 'disputes' && (
-             <div className="bg-vangard-card rounded-2xl border border-gray-800 overflow-hidden overflow-x-auto shadow-lg">
-               <table className="w-full text-left text-sm text-gray-300">
-                 <thead className="bg-vangard-dark text-xs uppercase text-gray-500 border-b border-gray-800">
-                   <tr>
-                     <th className="px-6 py-4">Date</th>
-                     <th className="px-6 py-4">Disputed Record</th>
-                     <th className="px-6 py-4">Contact Email</th>
-                     <th className="px-6 py-4 min-w-[200px]">Reasoning</th>
-                     <th className="px-6 py-4 text-center">Status</th>
-                     <th className="px-6 py-4 text-right">Actions</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-gray-800">
-                   {disputes.length === 0 ? (
-                     <tr><td colSpan={6} className="text-center py-8 text-gray-500">No disputes active.</td></tr>
-                   ) : (
-                     disputes.map(dispute => (
-                       <tr key={dispute.id} className="hover:bg-gray-800/30 transition-colors">
-                         <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">{new Date(dispute.created_at).toLocaleDateString()}</td>
-                         <td className="px-6 py-4 font-bold text-white whitespace-nowrap">{dispute.scammers?.primary_name || 'Deleted Record'}</td>
-                         <td className="px-6 py-4 text-blue-400">{dispute.contact_email}</td>
-                         <td className="px-6 py-4 text-xs">{dispute.reason}</td>
-                         <td className="px-6 py-4 text-center uppercase text-xs font-bold">
-                            <span className={
-                              dispute.status === 'pending' ? 'text-yellow-500' :
-                              dispute.status === 'resolved' ? 'text-green-500' : 'text-gray-500'
-                            }>{dispute.status}</span>
-                         </td>
-                         <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
-                           {dispute.status === 'pending' && (
-                             <>
-                               <button onClick={() => handleUpdateDispute(dispute.id, 'resolved')} className="text-green-500 hover:bg-green-500/10 px-3 py-1 rounded border border-green-500/20">Resolve</button>
-                               <button onClick={() => handleUpdateDispute(dispute.id, 'rejected')} className="text-red-500 hover:bg-red-500/10 px-3 py-1 rounded border border-red-500/20">Reject</button>
-                             </>
-                           )}
-                         </td>
-                       </tr>
-                     ))
-                   )}
-                 </tbody>
-               </table>
+          {tab === 'disputes' && (
+             <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
+                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs uppercase font-black text-gray-500 border-b border-gray-200 dark:border-gray-800 tracking-wider">
+                     <tr>
+                       <th className="px-6 py-5">Date</th>
+                       <th className="px-6 py-5">Target Record</th>
+                       <th className="px-6 py-5">Contact Email</th>
+                       <th className="px-6 py-5 min-w-[250px]">Reasoning</th>
+                       <th className="px-6 py-5 text-center">Status</th>
+                       <th className="px-6 py-5 text-right">Actions</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                     {disputes.length === 0 ? (
+                       <tr><td colSpan={6} className="text-center py-12 text-gray-500 font-bold">No active disputes found.</td></tr>
+                     ) : (
+                       disputes.map(dispute => (
+                         <tr key={dispute.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                           <td className="px-6 py-5 whitespace-nowrap text-xs font-bold text-gray-500">{new Date(dispute.created_at).toLocaleDateString()}</td>
+                           <td className="px-6 py-5 font-black text-gray-900 dark:text-white whitespace-nowrap">{dispute.scammers?.primary_name || 'Deleted Record'}</td>
+                           <td className="px-6 py-5 text-blue-600 dark:text-blue-400 font-medium">{dispute.contact_email}</td>
+                           <td className="px-6 py-5 text-sm font-medium">{dispute.reason}</td>
+                           <td className="px-6 py-5 text-center uppercase text-xs font-black">
+                              <span className={
+                                dispute.status === 'pending' ? 'text-yellow-600 dark:text-yellow-500' :
+                                dispute.status === 'resolved' ? 'text-green-600 dark:text-green-500' : 'text-gray-500'
+                              }>{dispute.status}</span>
+                           </td>
+                           <td className="px-6 py-5 text-right space-x-2 whitespace-nowrap">
+                             {dispute.status === 'pending' && (
+                               <>
+                                 <button onClick={() => handleUpdateDispute(dispute.id, 'resolved')} className="text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-500/10 hover:bg-green-100 dark:hover:bg-green-500/20 px-4 py-2 rounded-xl font-bold transition-colors">Resolve</button>
+                                 <button onClick={() => handleUpdateDispute(dispute.id, 'rejected')} className="text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 px-4 py-2 rounded-xl font-bold transition-colors">Reject</button>
+                               </>
+                             )}
+                           </td>
+                         </tr>
+                       ))
+                     )}
+                   </tbody>
+                 </table>
+               </div>
              </div>
           )}
         </>
