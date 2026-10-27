@@ -164,8 +164,16 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     if (!confirm(`Mark this dispute as ${newStatus.toUpperCase()}?`)) return;
     setProcessingId(disputeId);
     try {
-      const { error } = await supabase.from('disputes').update({ status: newStatus }).eq('id', disputeId);
+      // Added .select() to force a response from Supabase
+      const { data, error } = await supabase
+        .from('disputes')
+        .update({ status: newStatus })
+        .eq('id', disputeId)
+        .select();
+
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Update blocked by Database Security Policy.");
+
       setDisputes(disputes.map(d => d.id === disputeId ? { ...d, status: newStatus } : d));
     } catch (err: any) {
       alert("Error updating dispute: " + err.message);
@@ -176,8 +184,16 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   const handleAskForEvidence = async (dispute: any) => {
     try {
       setProcessingId(dispute.id);
-      const { error } = await supabase.from('disputes').update({ status: 'awaiting_evidence' }).eq('id', dispute.id);
+      
+      // Added .select() to force a response from Supabase
+      const { data, error } = await supabase
+        .from('disputes')
+        .update({ status: 'awaiting_evidence' })
+        .eq('id', dispute.id)
+        .select();
+
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Update blocked by Database Security Policy.");
       
       setDisputes(disputes.map(d => d.id === dispute.id ? { ...d, status: 'awaiting_evidence' } : d));
       
