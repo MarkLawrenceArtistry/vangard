@@ -9,6 +9,7 @@ import Dashboard from './pages/Dashboard';
 import ModDashboard from './pages/ModDashboard';
 import Login from './pages/Login';
 import ScammerDetails from './pages/ScammerDetails';
+import MyDisputes from './pages/MyDisputes';
 
 function App() {
   
@@ -43,6 +44,7 @@ function App() {
 
         <Route element={<PortalLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/my-disputes" element={<MyDisputes />} />
           <Route path="/mod/pending" element={<ModDashboard tab="pending" />} />
           <Route path="/mod/database" element={<ModDashboard tab="scammers" />} />
           <Route path="/mod/disputes" element={<ModDashboard tab="disputes" />} />

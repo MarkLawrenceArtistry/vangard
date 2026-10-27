@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
-import { User, Scale, Menu, X, Moon, Sun, LogOut, Clock, Database, ArrowLeft, Tags, Users } from 'lucide-react';
+import { User, Scale, Menu, X, Moon, Sun, LogOut, Clock, Database, ArrowLeft, Tags, Users, MessageSquareWarning  } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function PortalLayout() {
@@ -100,6 +100,7 @@ export default function PortalLayout() {
           <div>
             <div className="px-3 mb-3"><span className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest">Personal</span></div>
             <div className="space-y-1"><NavItem to="/dashboard" icon={User} label="My Dashboard" /></div>
+            <div className="space-y-1"><NavItem to="/my-disputes" icon={MessageSquareWarning} label="My Disputes" /></div>
           </div>
 
           {isMod && (

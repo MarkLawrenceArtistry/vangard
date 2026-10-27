@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { User, Scale, Menu, X, Moon, Sun, Search, LogOut, Clock, Database, ShieldAlert } from 'lucide-react';
+import { User, Scale, Menu, X, Moon, Sun, Search, LogOut, Clock, Database, ShieldAlert, MessageSquareWarning } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function MainLayout() {
@@ -144,6 +144,7 @@ export default function MainLayout() {
               </div>
               <div className="space-y-1">
                 <NavItem to="/dashboard" icon={User} label="My Dashboard" />
+                <NavItem to="/my-disputes" icon={MessageSquareWarning} label="My Disputes" />
               </div>
             </div>
           )}

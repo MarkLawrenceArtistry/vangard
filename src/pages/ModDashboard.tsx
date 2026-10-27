@@ -22,6 +22,10 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
   const [editCategoryName, setEditCategoryName] = useState('');
 
+  const [adminMessageModalOpen, setAdminMessageModalOpen] = useState(false);
+  const [selectedDispute, setSelectedDispute] = useState<any>(null);
+  const [adminMessageText, setAdminMessageText] = useState("");
+
   // Search states
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -194,32 +198,30 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     setProcessingId(null);
   };
 
-  const handleAskForEvidence = async (dispute: any) => {
+  const openAdminMessageModal = (dispute: any) => {
+    setSelectedDispute(dispute);
+    setAdminMessageText(`Hello,\n\nPlease email your full evidences to vangard-bns@gmail.com. Include any relevant screenshots, transaction receipts, or conversation logs as attachments.\n\nImportant: The subject of your email MUST be your contact mobile number.\n\nThank you,\nVANGARD Moderation Team`);
+    setAdminMessageModalOpen(true);
+    };
+
+    const sendAdminMessage = async () => {
+    if (!selectedDispute || !adminMessageText.trim()) return;
+    setProcessingId(selectedDispute.id);
     try {
-      setProcessingId(dispute.id);
-
-      const { data, error } = await supabase
+        const { error } = await supabase
         .from('disputes')
-        .update({ status: 'awaiting_evidence' })
-        .eq('id', dispute.id)
-        .select();
+        .update({ status: 'awaiting_evidence', admin_message: adminMessageText })
+        .eq('id', selectedDispute.id);
 
-      if (error) throw error;
-      if (!data || data.length === 0) throw new Error("Update blocked by Database Security Policy.");
+        if (error) throw error;
 
-      setDisputes(disputes.map(d => d.id === dispute.id ? { ...d, status: 'awaiting_evidence' } : d));
-
-      const subject = encodeURIComponent(`VANGARD Registry: Evidence Required for Dispute`);
-      const body = encodeURIComponent(
-        `Hello,\n\nWe are reviewing your dispute regarding the record for: ${dispute.scammers?.primary_name || 'the reported entity'}.\n\nTo proceed with an investigation, we require supporting evidence. Please reply directly to this email and attach any relevant screenshots, transaction receipts, or conversation logs.\n\nThank you,\nVANGARD Moderation Team`
-      );
-
-      window.location.href = `mailto:${dispute.contact_email}?subject=${subject}&body=${body}`;
+        setDisputes(disputes.map(d => d.id === selectedDispute.id ? { ...d, status: 'awaiting_evidence', admin_message: adminMessageText } : d));
+        setAdminMessageModalOpen(false);
     } catch (err: any) {
-      alert("Error: " + err.message);
+        alert("Error: " + err.message);
     }
     setProcessingId(null);
-  };
+    };
 
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -530,7 +532,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                            <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
                              {(dispute.status === 'pending' || dispute.status === 'awaiting_evidence') && (
                                <>
-                                 <button onClick={() => handleAskForEvidence(dispute)} disabled={processingId === dispute.id} className="text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Mail className="w-3 h-3"/> Ask Evidence</button>
+                                 <button onClick={() => openAdminMessageModal(dispute)} disabled={processingId === dispute.id} className="text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Mail className="w-3 h-3"/> Ask Evidence</button>
                                  <button onClick={() => handleUpdateDispute(dispute.id, 'resolved')} disabled={processingId === dispute.id} className="text-green-600 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs">Resolve</button>
                                  <button onClick={() => handleUpdateDispute(dispute.id, 'rejected')} disabled={processingId === dispute.id} className="text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs">Reject</button>
                                </>
@@ -700,6 +702,28 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
           )}
         </>
       )}
+
+      {adminMessageModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <div className="bg-white dark:bg-vangard-card w-full max-w-lg rounded-3xl p-6 shadow-2xl border border-gray-200 dark:border-gray-800 relative">
+            <h3 className="text-xl font-black text-gray-900 dark:text-white mb-2">Request Evidence</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Edit the message that will be sent to the user's dashboard.</p>
+            
+            <textarea 
+                value={adminMessageText} 
+                onChange={(e) => setAdminMessageText(e.target.value)} 
+                className="w-full p-4 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-sm font-medium h-48 resize-none mb-4" 
+            />
+            
+            <div className="flex gap-3">
+                <button onClick={() => setAdminMessageModalOpen(false)} className="flex-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-bold py-3 rounded-xl transition-colors">Cancel</button>
+                <button onClick={sendAdminMessage} disabled={processingId === selectedDispute?.id} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 rounded-xl transition-all shadow-md">
+                {processingId === selectedDispute?.id ? 'Sending...' : 'Send Message'}
+                </button>
+            </div>
+            </div>
+        </div>
+        )}
     </div>
   );
 }

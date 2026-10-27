@@ -1,7 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Search, ShieldAlert, ArrowRight, AlertOctagon, Phone, Smartphone, Link as LinkIcon, Calendar, MessageSquareWarning } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+
+import AuthModal from '../components/AuthModal';
+import DisputeModal from '../components/DisputeModal';
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -9,6 +12,15 @@ export default function Home() {
   const [hasSearched, setHasSearched] = useState(false);
   const [results, setResults] = useState<any[]>([]);
   const navigate = useNavigate();
+
+  const [session, setSession] = useState<any>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [disputeModalOpen, setDisputeModalOpen] = useState(false);
+  const [selectedScammer, setSelectedScammer] = useState<any>(null);
+
+  useEffect(() => {
+  supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+}, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -43,24 +55,14 @@ export default function Home() {
     }
   };
 
-  const handleDispute = async (scammerId: string) => {
-    const email = prompt("Enter your email address so our team can contact you:");
-    if (!email) return;
-    const reason = prompt("Briefly explain why this record is inaccurate or resolved:");
-    if (!reason) return;
-
-    try {
-      const { error } = await supabase.from('disputes').insert({
-        scammer_id: scammerId,
-        contact_email: email,
-        reason: reason
-      });
-      if (error) throw error;
-      alert("Dispute submitted successfully. Our moderation team will review and contact you.");
-    } catch (err: any) {
-      alert("Error submitting dispute: " + err.message);
-    }
-  };
+  const handleDisputeClick = (scammer: any) => {
+  setSelectedScammer(scammer);
+  if (!session) {
+    setAuthModalOpen(true);
+  } else {
+    setDisputeModalOpen(true);
+  }
+};
 
   return (
     <div className="flex flex-col items-center pt-8 md:pt-20 pb-24 w-full">
@@ -130,11 +132,11 @@ export default function Home() {
                     >
                       <AlertOctagon className="w-4 h-4" /> View {s.verified_report_count} Flags
                     </Link>
-                    <button 
-                      onClick={() => handleDispute(s.id)}
-                      className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 px-4 py-2.5 rounded-xl flex justify-center items-center gap-2 font-bold text-xs transition-colors"
+                    <button
+                    onClick={() => handleDisputeClick(s)}
+                    className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 px-4 py-2.5 rounded-xl flex justify-center items-center gap-2 font-bold text-xs transition-colors"
                     >
-                      <MessageSquareWarning className="w-4 h-4" /> Dispute
+                    <MessageSquareWarning className="w-4 h-4" /> Dispute
                     </button>
                   </div>
                 </div>
@@ -177,6 +179,22 @@ export default function Home() {
           File a Report <ArrowRight className="w-4 h-4" />
         </button>
       </div>
+
+      <AuthModal 
+        isOpen={authModalOpen} 
+        onClose={() => setAuthModalOpen(false)} 
+        onSuccess={() => { setAuthModalOpen(false); setDisputeModalOpen(true); supabase.auth.getSession().then(({ data }) => setSession(data.session)); }} 
+        />
+        {selectedScammer && (
+        <DisputeModal
+            isOpen={disputeModalOpen}
+            onClose={() => setDisputeModalOpen(false)}
+            scammerId={selectedScammer.id}
+            scammerName={selectedScammer.primary_name}
+            userId={session?.user?.id}
+            defaultEmail={session?.user?.email || ''}
+        />
+        )}
     </div>
   );
 }

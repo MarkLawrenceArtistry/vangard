@@ -84,18 +84,6 @@ export default function Login() {
           </ul>
         </div>
 
-        <div className="space-y-3 mb-6">
-          <button onClick={() => handleOAuth('google')} className="w-full bg-white dark:bg-gray-100 text-gray-900 font-bold py-3.5 rounded-2xl border border-gray-200 dark:border-transparent hover:bg-gray-50 dark:hover:bg-gray-200 transition-colors flex items-center justify-center gap-3 shadow-sm">
-            Continue with Google
-          </button>
-        </div>
-
-        <div className="relative flex items-center py-2 mb-6">
-          <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
-          <span className="flex-shrink-0 mx-4 text-gray-400 dark:text-gray-500 text-xs font-bold uppercase tracking-wider">Or use email</span>
-          <div className="flex-grow border-t border-gray-200 dark:border-gray-700"></div>
-        </div>
-
         <form onSubmit={handleEmailAuth} className="space-y-4">
           {error && <div className="text-red-500 bg-red-50 dark:bg-red-500/10 p-3 rounded-xl text-sm font-bold text-center border border-red-200 dark:border-red-900/30">{error}</div>}
           

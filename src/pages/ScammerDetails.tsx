@@ -3,6 +3,9 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { AlertOctagon, Phone, Smartphone, Link as LinkIcon, Calendar, ArrowLeft, ShieldAlert, MessageSquareWarning } from 'lucide-react';
 
+import AuthModal from '../components/AuthModal';
+import DisputeModal from '../components/DisputeModal';
+
 const linkify = (text: string) => {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   return text.split(urlRegex).map((part, i) => {
@@ -19,7 +22,12 @@ export default function ScammerDetails() {
   const [reports, setReports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [session, setSession] = useState<any>(null);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [disputeModalOpen, setDisputeModalOpen] = useState(false);
+
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
     const fetchData = async () => {
       setLoading(true);
       const { data: scamData } = await supabase.from('scammers').select('*').eq('id', id).single();
@@ -32,22 +40,13 @@ export default function ScammerDetails() {
     fetchData();
   }, [id]);
 
-  const handleDispute = async () => {
-    const email = prompt("Enter your email address so our team can contact you:");
-    if (!email) return;
-    const reason = prompt("Briefly explain why this record is inaccurate or resolved:");
-    if (!reason) return;
-
-    try {
-      const { error } = await supabase.from('disputes').insert({
-        scammer_id: id, contact_email: email, reason: reason
-      });
-      if (error) throw error;
-      alert("Dispute submitted successfully. Our moderation team will review and contact you.");
-    } catch (err: any) {
-      alert("Error submitting dispute: " + err.message);
-    }
-  };
+    const handleDisputeClick = () => {
+        if (!session) {
+            setAuthModalOpen(true);
+        } else {
+            setDisputeModalOpen(true);
+        }
+    };
 
   if (loading) return <div className="text-center py-20 font-bold text-gray-500 animate-pulse text-sm">Loading Records...</div>;
   if (!scammer) return <div className="text-center py-20 font-bold text-gray-500 text-sm">Record not found.</div>;
@@ -76,7 +75,7 @@ export default function ScammerDetails() {
             <div className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-5 py-3 rounded-xl flex justify-center items-center gap-2 font-black text-sm border border-red-100 dark:border-red-900/30">
               <AlertOctagon className="w-5 h-5" /> {scammer.verified_report_count} Verified Flags
             </div>
-            <button onClick={handleDispute} className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 px-5 py-3 rounded-xl flex justify-center items-center gap-2 font-bold text-sm transition-colors border border-gray-200 dark:border-gray-700">
+            <button onClick={handleDisputeClick} className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 px-5 py-3 rounded-xl flex justify-center items-center gap-2 font-bold text-sm transition-colors border border-gray-200 dark:border-gray-700">
               <MessageSquareWarning className="w-5 h-5" /> Dispute Record
             </button>
           </div>
@@ -123,6 +122,19 @@ export default function ScammerDetails() {
           ))}
         </div>
       </div>
+      <AuthModal 
+        isOpen={authModalOpen} 
+        onClose={() => setAuthModalOpen(false)} 
+        onSuccess={() => { setAuthModalOpen(false); setDisputeModalOpen(true); supabase.auth.getSession().then(({ data }) => setSession(data.session)); }} 
+        />
+        <DisputeModal
+        isOpen={disputeModalOpen}
+        onClose={() => setDisputeModalOpen(false)}
+        scammerId={scammer.id}
+        scammerName={scammer.primary_name}
+        userId={session?.user?.id}
+        defaultEmail={session?.user?.email || ''}
+        />
     </div>
   );
 }
