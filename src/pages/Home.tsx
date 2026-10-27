@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, ShieldAlert, ArrowRight, AlertOctagon, Phone, Smartphone, Link as LinkIcon, Calendar, MessageSquareWarning } from 'lucide-react';
+import { Search, ShieldAlert, ArrowRight, AlertOctagon, Phone, Smartphone, Link as LinkIcon, Calendar, MessageSquareWarning, Flame  } from 'lucide-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -78,7 +78,7 @@ export default function Home() {
         </p>
       </div>
 
-      <form onSubmit={handleSearch} className="w-full max-w-xl relative mb-10">
+      <form onSubmit={handleSearch} className="w-full max-w-xl relative mb-4">
         <div className="relative group shadow-sm dark:shadow-2xl rounded-2xl transition-shadow">
           <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
             <Search className="w-4 h-4 text-gray-400 group-focus-within:text-vangard-primary transition-colors" />
@@ -96,6 +96,13 @@ export default function Home() {
           </button>
         </div>
       </form>
+
+      <div className="mb-10 text-center flex items-center justify-center gap-2">
+        <span className="text-[11px] sm:text-xs text-gray-500 font-medium">Want to see the most reported?</span>
+        <Link to="/wall-of-shame" className="text-[11px] sm:text-xs font-bold text-vangard-primary hover:text-red-600 hover:underline flex items-center gap-1 transition-all">
+            <Flame className="w-3.5 h-3.5" /> View Wall of Shame
+        </Link>
+        </div>
 
       <div className="w-full max-w-3xl">
         {isSearching && <div className="text-center text-gray-400 font-bold py-10">Scanning Database...</div>}

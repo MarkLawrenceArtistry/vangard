@@ -48,6 +48,13 @@ export default function PublicLayout() {
           </Link>
           
           <div className="flex items-center gap-2 md:gap-4">
+            <Link
+                to="/wall-of-shame"
+                className={`text-[11px] md:text-xs font-bold hidden sm:block ${location.pathname === '/wall-of-shame' ? 'text-vangard-primary' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}
+            >
+                Wall of Shame
+            </Link>
+
             <Link 
               to="/report" 
               className={`text-xs font-bold hidden md:block ${location.pathname === '/report' ? 'text-vangard-primary' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}

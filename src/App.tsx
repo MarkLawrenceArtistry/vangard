@@ -10,24 +10,16 @@ import ModDashboard from './pages/ModDashboard';
 import Login from './pages/Login';
 import ScammerDetails from './pages/ScammerDetails';
 import MyDisputes from './pages/MyDisputes';
+import WallOfShame from './pages/WallOfShame'; // <-- Import here
 
 function App() {
-  
   useEffect(() => {
-    // Keep-alive script to ping the database and prevent it from pausing due to inactivity
-    // Note: this only runs when a user opens the app.
     const keepAlive = async () => {
       try {
         await supabase.from('categories').select('id').limit(1);
-      } catch (err) {
-        // Silently ignore ping errors
-      }
+      } catch (err) {}
     };
-    
-    // Initial ping on load
     keepAlive();
-    
-    // Ping every 5 minutes while the app is open
     const interval = setInterval(keepAlive, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
@@ -40,6 +32,7 @@ function App() {
           <Route path="/report" element={<ReportForm />} />
           <Route path="/login" element={<Login />} />
           <Route path="/scammer/:id" element={<ScammerDetails />} />
+          <Route path="/wall-of-shame" element={<WallOfShame />} /> {/* <-- Add route here */}
         </Route>
 
         <Route element={<PortalLayout />}>

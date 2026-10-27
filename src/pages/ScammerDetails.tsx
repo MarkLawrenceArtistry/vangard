@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { AlertOctagon, Phone, Smartphone, Link as LinkIcon, Calendar, ArrowLeft, ShieldAlert, MessageSquareWarning } from 'lucide-react';
+import { AlertOctagon, Phone, Smartphone, Link as LinkIcon, Calendar, ArrowLeft, ShieldAlert, MessageSquareWarning, Flame  } from 'lucide-react';
 
 import AuthModal from '../components/AuthModal';
 import DisputeModal from '../components/DisputeModal';
@@ -57,9 +57,15 @@ export default function ScammerDetails() {
 
   return (
     <div className="w-full max-w-4xl mx-auto pb-10">
-      <Link to="/" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-white font-bold mb-5 transition-colors text-xs">
-        <ArrowLeft className="w-3.5 h-3.5" /> Back to Search
-      </Link>
+      <div className="flex justify-between items-center mb-5">
+    <Link to="/" className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-900 dark:hover:text-white font-bold transition-colors text-[11px] sm:text-xs">
+      <ArrowLeft className="w-3.5 h-3.5" /> Back to Search
+    </Link>
+
+    <Link to="/wall-of-shame" className="inline-flex items-center gap-1.5 text-vangard-primary hover:text-red-600 font-bold transition-colors text-[11px] sm:text-xs">
+      <Flame className="w-3.5 h-3.5" /> Wall of Shame
+    </Link>
+  </div>
 
       <div className="bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-3xl p-6 md:p-8 shadow-xl relative overflow-hidden mb-8">
         <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-500 to-red-600"></div>
