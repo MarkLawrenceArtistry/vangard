@@ -38,14 +38,6 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
       setLoading(false);
     }
   };
-
-  const handleOAuth = async (provider: 'google' | 'discord') => {
-    await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: window.location.origin }
-    });
-  };
-
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
       <div className="bg-white dark:bg-vangard-card w-full max-w-md rounded-2xl sm:rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 relative max-h-[95dvh] flex flex-col overflow-hidden">
