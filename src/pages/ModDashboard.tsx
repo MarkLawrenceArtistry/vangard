@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShieldCheck, Archive, Trash2, Plus, Mail, Ban, Clock, CheckCircle, XCircle, Search } from 'lucide-react';
+import { ShieldCheck, Archive, Trash2, Edit2, Plus, Mail, Ban, Clock, CheckCircle, XCircle, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ModDashboardProps {
@@ -17,8 +17,11 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   const [disputes, setDisputes] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [newCategory, setNewCategory] = useState('');
   
+  const [newCategory, setNewCategory] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [editCategoryName, setEditCategoryName] = useState('');
+
   // Search states
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,7 +37,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     // Reset search when switching tabs
     setSearchInput('');
     setSearchQuery('');
-    
+
     if (isMod) {
       if (tab === 'pending') fetchPendingReports();
       if (tab === 'scammers') fetchScammers();
@@ -231,6 +234,25 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     }
   };
 
+  const handleStartEditCategory = (c: any) => {
+    setEditingCategoryId(c.id);
+    setEditCategoryName(c.name);
+  };
+
+  const handleSaveCategory = async (id: string) => {
+    if (!editCategoryName.trim()) return;
+    setProcessingId(id);
+    try {
+      const { error } = await supabase.from('categories').update({ name: editCategoryName.trim() }).eq('id', id);
+      if (error) throw error;
+      setCategories(categories.map(c => c.id === id ? { ...c, name: editCategoryName.trim() } : c).sort((a, b) => a.name.localeCompare(b.name)));
+      setEditingCategoryId(null);
+    } catch (err: any) {
+      alert(err.message);
+    }
+    setProcessingId(null);
+  };
+
   const handleDeleteCategory = async (id: string, name: string) => {
     if (!confirm(`Are you sure you want to delete the category "${name}"?`)) return;
     setProcessingId(id);
@@ -277,15 +299,12 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     pending: "Pending Reports Queue",
     scammers: "Verified Public Database",
     disputes: "Active Disputes",
-    categories: "Manage Niche Categories",
+    categories: "Manage Categories",
     users: "User Management"
   };
 
-  // -----------------------------------------------------
-  // Filtering Logic for Tabs
-  // -----------------------------------------------------
-  const filteredReports = reports.filter(r => 
-    searchQuery === '' || 
+  const filteredReports = reports.filter(r =>
+    searchQuery === '' ||
     r.reported_name?.toLowerCase().includes(searchQuery) ||
     r.phone_input?.toLowerCase().includes(searchQuery) ||
     r.gcash_input?.toLowerCase().includes(searchQuery) ||
@@ -293,7 +312,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     r.category?.toLowerCase().includes(searchQuery)
   );
 
-  const filteredScammers = scammers.filter(s => 
+  const filteredScammers = scammers.filter(s =>
     searchQuery === '' ||
     s.primary_name?.toLowerCase().includes(searchQuery) ||
     s.phone_numbers?.some((p: string) => p.toLowerCase().includes(searchQuery)) ||
@@ -301,35 +320,36 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     s.facebook_links?.some((f: string) => f.toLowerCase().includes(searchQuery))
   );
 
-  const filteredDisputes = disputes.filter(d => 
+  const filteredDisputes = disputes.filter(d =>
     searchQuery === '' ||
     d.scammers?.primary_name?.toLowerCase().includes(searchQuery) ||
     d.contact_email?.toLowerCase().includes(searchQuery) ||
     d.reason?.toLowerCase().includes(searchQuery)
   );
 
-  const filteredCategories = categories.filter(c => 
+  const filteredCategories = categories.filter(c =>
     searchQuery === '' ||
     c.name?.toLowerCase().includes(searchQuery)
   );
 
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = users.filter(u =>
     searchQuery === '' ||
     u.id?.toLowerCase().includes(searchQuery) ||
+    u.email?.toLowerCase().includes(searchQuery) ||
     u.role?.toLowerCase().includes(searchQuery)
   );
 
   return (
     <div className="w-full mx-auto max-w-6xl animate-in fade-in duration-500">
 
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6 border-b border-gray-200 dark:border-gray-800 pb-6">
-        <div className="bg-red-50 dark:bg-vangard-primary/10 p-3.5 rounded-2xl border border-red-100 dark:border-vangard-primary/20 shadow-sm">
-          <ShieldCheck className="w-8 h-8 text-vangard-primary" />
+      {/* Header - Adjusted font sizes */}
+      <div className="flex items-center gap-3 mb-6 border-b border-gray-200 dark:border-gray-800 pb-4">
+        <div className="bg-red-50 dark:bg-vangard-primary/10 p-2.5 rounded-xl border border-red-100 dark:border-vangard-primary/20 shadow-sm">
+          <ShieldCheck className="w-6 h-6 text-vangard-primary" />
         </div>
         <div>
-          <h1 className="text-3xl font-black text-gray-900 dark:text-white">Moderator HQ</h1>
-          <p className="text-gray-500 dark:text-gray-400 font-bold text-sm mt-1 uppercase tracking-wider">
+          <h1 className="text-xl md:text-2xl font-semibold text-gray-900 dark:text-white">Moderator HQ</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">
             Viewing: <span className="text-vangard-primary">{tabTitles[tab]}</span>
           </p>
         </div>
@@ -346,11 +366,11 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder={`Search ${tabTitles[tab].toLowerCase()}...`}
-              className="w-full pl-11 pr-24 py-3 bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all text-sm font-medium text-gray-900 dark:text-white shadow-sm"
+              className="w-full pl-11 pr-24 py-2.5 bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all text-sm text-gray-900 dark:text-white shadow-sm"
             />
             <button
               type="submit"
-              className="absolute inset-y-1.5 right-1.5 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+              className="absolute inset-y-1.5 right-1.5 px-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-xs transition-colors shadow-sm"
             >
               Search
             </button>
@@ -361,7 +381,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
       {loading && (
         <div className="p-20 flex flex-col items-center justify-center text-gray-400">
           <div className="w-10 h-10 border-4 border-gray-200 dark:border-gray-700 border-t-vangard-primary rounded-full animate-spin mb-4"></div>
-          <span className="font-bold animate-pulse">Loading secure data...</span>
+          <span className="text-sm">Loading secure data...</span>
         </div>
       )}
 
@@ -372,42 +392,42 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
              <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
                <div className="overflow-x-auto">
                  <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
-                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs uppercase font-black text-gray-500 border-b border-gray-200 dark:border-gray-800 tracking-wider">
+                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs text-gray-500 border-b border-gray-200 dark:border-gray-800">
                      <tr>
-                       <th className="px-6 py-5">Date / Target</th>
-                       <th className="px-6 py-5">Contact Details</th>
-                       <th className="px-6 py-5 min-w-[300px]">Incident Description</th>
-                       <th className="px-6 py-5 text-right">Actions</th>
+                       <th className="px-6 py-4 font-normal">Date / Target</th>
+                       <th className="px-6 py-4 font-normal">Contact Details</th>
+                       <th className="px-6 py-4 font-normal min-w-[300px]">Incident Description</th>
+                       <th className="px-6 py-4 font-normal text-right">Actions</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                      {filteredReports.length === 0 ? (
-                       <tr><td colSpan={4} className="text-center py-12 text-gray-500 font-bold">No pending reports found matching "{searchQuery}".</td></tr>
+                       <tr><td colSpan={4} className="text-center py-10 text-gray-500 text-sm">No pending reports found matching "{searchQuery}".</td></tr>
                      ) : (
                        filteredReports.map(report => (
                          <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                           <td className="px-6 py-5">
-                             <div className="text-[10px] font-bold text-gray-400 mb-1">{new Date(report.created_at).toLocaleDateString()}</div>
-                             <div className="font-black text-gray-900 dark:text-white text-base mb-1.5">{report.reported_name}</div>
-                             <span className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-md text-gray-600 dark:text-gray-300 font-bold uppercase tracking-wider">
+                           <td className="px-6 py-4">
+                             <div className="text-[10px] text-gray-400 mb-1">{new Date(report.created_at).toLocaleDateString()}</div>
+                             <div className="text-gray-900 dark:text-white text-sm mb-1.5">{report.reported_name}</div>
+                             <span className="text-[10px] bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded text-gray-600 dark:text-gray-300">
                                {report.category}
                              </span>
                            </td>
-                           <td className="px-6 py-5">
-                             <div className="text-xs font-medium space-y-1.5">
+                           <td className="px-6 py-4 text-xs">
+                             <div className="space-y-1.5">
                                {report.phone_input && report.phone_input !== 'N/A' && <div><span className="text-gray-400">Phone:</span> <span className="text-gray-900 dark:text-gray-200">{report.phone_input}</span></div>}
                                {report.gcash_input && report.gcash_input !== 'N/A' && <div><span className="text-gray-400">GCash:</span> <span className="text-gray-900 dark:text-gray-200">{report.gcash_input}</span></div>}
                                {report.facebook_input && report.facebook_input !== 'N/A' && <div><span className="text-gray-400">FB:</span> <a href={report.facebook_input} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline">View Profile</a></div>}
                              </div>
                            </td>
-                           <td className="px-6 py-5">
+                           <td className="px-6 py-4">
                              <div className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-vangard-dark p-3 rounded-xl border border-gray-100 dark:border-gray-800 max-h-32 overflow-y-auto whitespace-pre-wrap break-words">
                                {report.description}
                              </div>
                            </td>
-                           <td className="px-6 py-5 text-right space-x-2 whitespace-nowrap align-top pt-8">
-                             <button onClick={() => handleApproveReport(report)} disabled={processingId === report.id} className="text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5"/> Verify</button>
-                             <button onClick={() => handleRejectReport(report.id)} disabled={processingId === report.id} className="text-red-700 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-2 rounded-xl font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5"/> Reject</button>
+                           <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap align-top pt-6">
+                             <button onClick={() => handleApproveReport(report)} disabled={processingId === report.id} className="text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5"/> Verify</button>
+                             <button onClick={() => handleRejectReport(report.id)} disabled={processingId === report.id} className="text-red-700 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5"/> Reject</button>
                            </td>
                          </tr>
                        ))
@@ -418,51 +438,51 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
              </div>
           )}
 
-          {/* Scammers Tab */}
+          {/* Database Tab */}
           {tab === 'scammers' && (
              <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
                <div className="overflow-x-auto">
                  <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
-                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs uppercase font-black text-gray-500 border-b border-gray-200 dark:border-gray-800 tracking-wider">
+                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs text-gray-500 border-b border-gray-200 dark:border-gray-800">
                      <tr>
-                       <th className="px-6 py-5">Name</th>
-                       <th className="px-6 py-5">Contact Info</th>
-                       <th className="px-6 py-5 text-center">Flags</th>
-                       <th className="px-6 py-5 text-center">Status</th>
-                       <th className="px-6 py-5 text-right">Actions</th>
+                       <th className="px-6 py-4 font-normal">Name</th>
+                       <th className="px-6 py-4 font-normal">Contact Info</th>
+                       <th className="px-6 py-4 font-normal text-center">Flags</th>
+                       <th className="px-6 py-4 font-normal text-center">Status</th>
+                       <th className="px-6 py-4 font-normal text-right">Actions</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                      {filteredScammers.length === 0 ? (
-                       <tr><td colSpan={5} className="text-center py-12 text-gray-500 font-bold">No verified scammers found matching "{searchQuery}".</td></tr>
+                       <tr><td colSpan={5} className="text-center py-10 text-gray-500 text-sm">No verified scammers found matching "{searchQuery}".</td></tr>
                      ) : (
                        filteredScammers.map(scammer => (
                          <tr key={scammer.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors ${scammer.is_archived ? 'opacity-50' : ''}`}>
-                           <td className="px-6 py-5 font-black text-gray-900 dark:text-white whitespace-nowrap text-base">{scammer.primary_name}</td>
-                           <td className="px-6 py-5">
-                             <div className="text-sm font-medium space-y-1">
+                           <td className="px-6 py-4 text-gray-900 dark:text-white whitespace-nowrap text-sm">{scammer.primary_name}</td>
+                           <td className="px-6 py-4">
+                             <div className="text-xs space-y-1">
                                {scammer.phone_numbers.length > 0 && <div><span className="text-gray-400">Phone:</span> <span className="text-gray-900 dark:text-gray-200">{scammer.phone_numbers[0]}</span></div>}
                                {scammer.gcash_numbers.length > 0 && <div><span className="text-gray-400">GCash:</span> <span className="text-gray-900 dark:text-gray-200">{scammer.gcash_numbers[0]}</span></div>}
                              </div>
                            </td>
-                           <td className="px-6 py-5 text-center">
-                              <span className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-500 px-3 py-1.5 rounded-lg font-black border border-red-100 dark:border-red-900/30">
+                           <td className="px-6 py-4 text-center">
+                              <span className="bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-500 px-2 py-1 rounded text-xs border border-red-100 dark:border-red-900/30">
                                 {scammer.verified_report_count}
                               </span>
                            </td>
-                           <td className="px-6 py-5 text-center">
+                           <td className="px-6 py-4 text-center">
                              {scammer.is_archived
-                               ? <span className="bg-yellow-100 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 px-3 py-1.5 rounded-full text-xs font-bold">Archived</span>
-                               : <span className="bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-500 px-3 py-1.5 rounded-full text-xs font-bold">Active</span>
+                               ? <span className="bg-yellow-100 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 px-2 py-1 rounded text-[10px]">Archived</span>
+                               : <span className="bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-500 px-2 py-1 rounded text-[10px]">Active</span>
                              }
                            </td>
-                           <td className="px-6 py-5 text-right">
+                           <td className="px-6 py-4 text-right">
                              <button
                                onClick={() => handleToggleArchive(scammer.id, scammer.is_archived, scammer.primary_name)}
                                disabled={processingId === scammer.id}
-                               className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-vangard-dark border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold transition-colors inline-flex items-center gap-2 text-xs disabled:opacity-50"
+                               className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-vangard-dark border border-gray-200 dark:border-gray-700 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1.5 text-xs disabled:opacity-50"
                              >
-                               <Archive className="w-4 h-4" /> {scammer.is_archived ? 'Restore' : 'Archive'}
+                               <Archive className="w-3.5 h-3.5" /> {scammer.is_archived ? 'Restore' : 'Archive'}
                              </button>
                            </td>
                          </tr>
@@ -479,40 +499,40 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
              <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
                <div className="overflow-x-auto">
                  <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
-                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs uppercase font-black text-gray-500 border-b border-gray-200 dark:border-gray-800 tracking-wider">
+                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs text-gray-500 border-b border-gray-200 dark:border-gray-800">
                      <tr>
-                       <th className="px-6 py-5">Date</th>
-                       <th className="px-6 py-5">Target Record</th>
-                       <th className="px-6 py-5">Contact Email</th>
-                       <th className="px-6 py-5 min-w-[200px]">Reasoning</th>
-                       <th className="px-6 py-5 text-center">Status</th>
-                       <th className="px-6 py-5 text-right">Actions</th>
+                       <th className="px-6 py-4 font-normal">Date</th>
+                       <th className="px-6 py-4 font-normal">Target Record</th>
+                       <th className="px-6 py-4 font-normal">Contact Email</th>
+                       <th className="px-6 py-4 font-normal min-w-[200px]">Reasoning</th>
+                       <th className="px-6 py-4 font-normal text-center">Status</th>
+                       <th className="px-6 py-4 font-normal text-right">Actions</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                      {filteredDisputes.length === 0 ? (
-                       <tr><td colSpan={6} className="text-center py-12 text-gray-500 font-bold">No active disputes found matching "{searchQuery}".</td></tr>
+                       <tr><td colSpan={6} className="text-center py-10 text-gray-500 text-sm">No active disputes found matching "{searchQuery}".</td></tr>
                      ) : (
                        filteredDisputes.map(dispute => (
                          <tr key={dispute.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                           <td className="px-6 py-5 whitespace-nowrap text-xs font-bold text-gray-500">{new Date(dispute.created_at).toLocaleDateString()}</td>
-                           <td className="px-6 py-5 font-black text-gray-900 dark:text-white whitespace-nowrap">{dispute.scammers?.primary_name || 'Deleted Record'}</td>
-                           <td className="px-6 py-5 text-blue-600 dark:text-blue-400 font-medium">{dispute.contact_email}</td>
-                           <td className="px-6 py-5 text-xs font-medium">{dispute.reason}</td>
-                           <td className="px-6 py-5 text-center uppercase text-[10px] font-black tracking-wider">
-                              <span className={`px-2 py-1 rounded-md ${
+                           <td className="px-6 py-4 whitespace-nowrap text-[10px] text-gray-500">{new Date(dispute.created_at).toLocaleDateString()}</td>
+                           <td className="px-6 py-4 text-gray-900 dark:text-white whitespace-nowrap text-sm">{dispute.scammers?.primary_name || 'Deleted Record'}</td>
+                           <td className="px-6 py-4 text-blue-600 dark:text-blue-400 text-xs">{dispute.contact_email}</td>
+                           <td className="px-6 py-4 text-xs">{dispute.reason}</td>
+                           <td className="px-6 py-4 text-center text-[10px]">
+                              <span className={`px-2 py-1 rounded ${
                                 dispute.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500' :
                                 dispute.status === 'awaiting_evidence' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-500' :
                                 dispute.status === 'resolved' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-500' :
                                 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
                               }`}>{dispute.status.replace('_', ' ')}</span>
                            </td>
-                           <td className="px-6 py-5 text-right space-x-2 whitespace-nowrap">
+                           <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
                              {(dispute.status === 'pending' || dispute.status === 'awaiting_evidence') && (
                                <>
-                                 <button onClick={() => handleAskForEvidence(dispute)} disabled={processingId === dispute.id} className="text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Mail className="w-3 h-3"/> Ask Evidence</button>
-                                 <button onClick={() => handleUpdateDispute(dispute.id, 'resolved')} disabled={processingId === dispute.id} className="text-green-600 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs">Resolve</button>
-                                 <button onClick={() => handleUpdateDispute(dispute.id, 'rejected')} disabled={processingId === dispute.id} className="text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs">Reject</button>
+                                 <button onClick={() => handleAskForEvidence(dispute)} disabled={processingId === dispute.id} className="text-blue-600 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Mail className="w-3 h-3"/> Ask Evidence</button>
+                                 <button onClick={() => handleUpdateDispute(dispute.id, 'resolved')} disabled={processingId === dispute.id} className="text-green-600 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs">Resolve</button>
+                                 <button onClick={() => handleUpdateDispute(dispute.id, 'rejected')} disabled={processingId === dispute.id} className="text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs">Reject</button>
                                </>
                              )}
                            </td>
@@ -528,46 +548,87 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
           {/* Categories Tab */}
           {tab === 'categories' && (
             <div className="max-w-3xl">
-              <form onSubmit={handleAddCategory} className="mb-8 flex flex-col md:flex-row gap-3">
+              <form onSubmit={handleAddCategory} className="mb-6 flex flex-col md:flex-row gap-3">
                 <input
                   type="text"
                   value={newCategory}
                   onChange={(e) => setNewCategory(e.target.value)}
                   placeholder="Enter new category name..."
-                  className="flex-1 p-4 bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-red-500/20 focus:border-vangard-primary outline-none text-gray-900 dark:text-white font-medium shadow-sm transition-all"
+                  className="flex-1 p-3 bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none text-sm text-gray-900 dark:text-white shadow-sm transition-all"
                 />
                 <button
                   type="submit"
-                  className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:scale-105 px-8 py-4 rounded-2xl font-black flex justify-center items-center gap-2 shadow-lg transition-transform"
+                  className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-6 py-3 rounded-xl text-sm flex justify-center items-center gap-2 shadow-sm transition-transform hover:scale-105"
                 >
-                  <Plus className="w-5 h-5" /> Add Category
+                  <Plus className="w-4 h-4" /> Add Category
                 </button>
               </form>
 
               <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
                 <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
-                  <thead className="bg-gray-50 dark:bg-vangard-dark text-xs uppercase font-black text-gray-500 border-b border-gray-200 dark:border-gray-800 tracking-wider">
+                  <thead className="bg-gray-50 dark:bg-vangard-dark text-xs text-gray-500 border-b border-gray-200 dark:border-gray-800">
                     <tr>
-                      <th className="px-8 py-5">Category Name</th>
-                      <th className="px-8 py-5 text-right">Actions</th>
+                      <th className="px-6 py-4 font-normal">Category Name</th>
+                      <th className="px-6 py-4 font-normal text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                     {filteredCategories.length === 0 ? (
-                       <tr><td colSpan={2} className="text-center py-10 text-gray-500 font-bold">No categories exist matching "{searchQuery}".</td></tr>
+                       <tr><td colSpan={2} className="text-center py-10 text-gray-500 text-sm">No categories exist matching "{searchQuery}".</td></tr>
                     ) : (
                       filteredCategories.map(c => (
                         <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
-                          <td className="px-8 py-5 font-black text-gray-900 dark:text-white text-base">{c.name}</td>
-                          <td className="px-8 py-5 text-right">
-                            <button
-                              onClick={() => handleDeleteCategory(c.id, c.name)}
-                              disabled={processingId === c.id}
-                              className="text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 p-2.5 rounded-xl transition-colors disabled:opacity-50 inline-flex items-center shadow-sm"
-                              title="Delete Category"
-                            >
-                              <Trash2 className="w-5 h-5" />
-                            </button>
+                          <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">
+                            {editingCategoryId === c.id ? (
+                              <input 
+                                autoFocus
+                                type="text"
+                                value={editCategoryName}
+                                onChange={(e) => setEditCategoryName(e.target.value)}
+                                className="w-full p-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-600 rounded-md text-sm outline-none"
+                              />
+                            ) : (
+                              c.name
+                            )}
+                          </td>
+                          <td className="px-6 py-4 text-right space-x-2">
+                            {editingCategoryId === c.id ? (
+                              <>
+                                <button
+                                  onClick={() => handleSaveCategory(c.id)}
+                                  disabled={processingId === c.id}
+                                  className="text-green-600 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-1.5 rounded-lg text-xs transition-colors"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={() => setEditingCategoryId(null)}
+                                  disabled={processingId === c.id}
+                                  className="text-gray-600 bg-gray-50 hover:bg-gray-100 dark:text-gray-400 dark:bg-gray-800 dark:hover:bg-gray-700 px-3 py-1.5 rounded-lg text-xs transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleStartEditCategory(c)}
+                                  disabled={processingId === c.id}
+                                  className="text-blue-500 bg-blue-50 dark:bg-blue-500/10 hover:bg-blue-100 dark:hover:bg-blue-500/20 p-2 rounded-lg transition-colors inline-flex items-center"
+                                  title="Edit Category"
+                                >
+                                  <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteCategory(c.id, c.name)}
+                                  disabled={processingId === c.id}
+                                  className="text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 p-2 rounded-lg transition-colors disabled:opacity-50 inline-flex items-center shadow-sm"
+                                  title="Delete Category"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -583,42 +644,49 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
              <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
                <div className="overflow-x-auto">
                  <table className="w-full text-left text-sm text-gray-700 dark:text-gray-300">
-                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs uppercase font-black text-gray-500 border-b border-gray-200 dark:border-gray-800 tracking-wider">
+                   <thead className="bg-gray-50 dark:bg-vangard-dark text-xs text-gray-500 border-b border-gray-200 dark:border-gray-800">
                      <tr>
-                       <th className="px-6 py-5">User ID</th>
-                       <th className="px-6 py-5">Role</th>
-                       <th className="px-6 py-5 text-center">Status</th>
-                       <th className="px-6 py-5 text-right">Actions</th>
+                       <th className="px-6 py-4 font-normal">User Details</th>
+                       <th className="px-6 py-4 font-normal">Joined</th>
+                       <th className="px-6 py-4 font-normal">Role</th>
+                       <th className="px-6 py-4 font-normal text-center">Status</th>
+                       <th className="px-6 py-4 font-normal text-right">Actions</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                      {filteredUsers.length === 0 ? (
-                       <tr><td colSpan={4} className="text-center py-12 text-gray-500 font-bold">No users found matching "{searchQuery}".</td></tr>
+                       <tr><td colSpan={5} className="text-center py-10 text-gray-500 text-sm">No users found matching "{searchQuery}".</td></tr>
                      ) : (
                        filteredUsers.map(user => (
                          <tr key={user.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors ${user.status !== 'active' ? 'opacity-70' : ''}`}>
-                           <td className="px-6 py-5 font-black text-gray-900 dark:text-white text-xs truncate max-w-[200px]">{user.id}</td>
-                           <td className="px-6 py-5 uppercase text-[10px] font-bold tracking-wider">{user.role}</td>
-                           <td className="px-6 py-5 text-center">
+                           <td className="px-6 py-4 text-xs">
+                             <div className="text-gray-900 dark:text-white text-sm mb-0.5">{user.email || 'Email not available'}</div>
+                             <div className="text-gray-400 text-[10px] truncate max-w-[200px]">{user.id}</div>
+                           </td>
+                           <td className="px-6 py-4 text-xs text-gray-500">
+                             {new Date(user.created_at).toLocaleDateString()}
+                           </td>
+                           <td className="px-6 py-4 text-[10px]">{user.role}</td>
+                           <td className="px-6 py-4 text-center">
                              {user.status === 'banned' ? (
-                               <span className="bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-500 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider">Banned</span>
+                               <span className="bg-red-100 text-red-700 dark:bg-red-500/10 dark:text-red-500 px-2 py-1 rounded text-[10px]">Banned</span>
                              ) : user.status === 'suspended' ? (
-                               <span className="bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider block">
+                               <span className="bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500 px-2 py-1 rounded text-[10px] block">
                                  Suspended<br/><span className="text-[8px]">Until {new Date(user.suspended_until).toLocaleDateString()}</span>
                                </span>
                              ) : (
-                               <span className="bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-500 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider">Active</span>
+                               <span className="bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-500 px-2 py-1 rounded text-[10px]">Active</span>
                              )}
                            </td>
-                           <td className="px-6 py-5 text-right space-x-2 whitespace-nowrap">
+                           <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap">
                              {user.role !== 'admin' && (
                                user.status === 'active' ? (
                                  <>
-                                   <button onClick={() => handleUserAction(user.id, 'suspend')} disabled={processingId === user.id} className="text-yellow-600 bg-yellow-50 hover:bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-500/10 dark:hover:bg-yellow-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Clock className="w-3 h-3"/> Suspend (7d)</button>
-                                   <button onClick={() => handleUserAction(user.id, 'ban')} disabled={processingId === user.id} className="text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Ban className="w-3 h-3"/> Ban</button>
+                                   <button onClick={() => handleUserAction(user.id, 'suspend')} disabled={processingId === user.id} className="text-yellow-600 bg-yellow-50 hover:bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-500/10 dark:hover:bg-yellow-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Clock className="w-3 h-3"/> Suspend (7d)</button>
+                                   <button onClick={() => handleUserAction(user.id, 'ban')} disabled={processingId === user.id} className="text-red-600 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Ban className="w-3 h-3"/> Ban</button>
                                  </>
                                ) : (
-                                 <button onClick={() => handleUserAction(user.id, 'restore')} disabled={processingId === user.id} className="text-green-600 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-4 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs">Restore</button>
+                                 <button onClick={() => handleUserAction(user.id, 'restore')} disabled={processingId === user.id} className="text-green-600 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs">Restore</button>
                                )
                              )}
                            </td>
