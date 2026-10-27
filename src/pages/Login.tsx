@@ -49,14 +49,6 @@ export default function Login() {
     }
   };
 
-  const handleOAuth = async (provider: 'google' | 'discord') => {
-    const redirectTo = new URLSearchParams(location.search).get('redirect') || '/dashboard';
-    await supabase.auth.signInWithOAuth({
-      provider,
-      options: { redirectTo: `${window.location.origin}${redirectTo}` }
-    });
-  };
-
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] px-4 w-full py-8">
       <div className="bg-white dark:bg-vangard-card w-full max-w-md rounded-2xl sm:rounded-3xl shadow-xl border border-gray-200 dark:border-gray-800 overflow-hidden transition-all p-6 sm:p-8">
