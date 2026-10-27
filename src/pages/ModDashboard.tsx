@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShieldCheck, Archive, Trash2, Plus, Mail, Ban, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { ShieldCheck, Archive, Trash2, Plus, Mail, Ban, Clock, CheckCircle, XCircle, Search } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ModDashboardProps {
@@ -11,7 +11,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   const [loading, setLoading] = useState(true);
   const [isMod, setIsMod] = useState(false);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  
+
   const [reports, setReports] = useState<any[]>([]);
   const [scammers, setScammers] = useState<any[]>([]);
   const [disputes, setDisputes] = useState<any[]>([]);
@@ -19,6 +19,10 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [newCategory, setNewCategory] = useState('');
   
+  // Search states
+  const [searchInput, setSearchInput] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -27,6 +31,10 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   }, []);
 
   useEffect(() => {
+    // Reset search when switching tabs
+    setSearchInput('');
+    setSearchQuery('');
+    
     if (isMod) {
       if (tab === 'pending') fetchPendingReports();
       if (tab === 'scammers') fetchScammers();
@@ -86,8 +94,11 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     setLoading(false);
   };
 
-  // --- ACTIONS ---
-  
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setSearchQuery(searchInput.trim().toLowerCase());
+  };
+
   const handleRejectReport = async (reportId: string) => {
     const reason = prompt("Enter rejection reason:");
     if (!reason) return;
@@ -125,7 +136,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
           scammerId = existingMatches[0].id;
           await supabase.from('scammers').update({
             verified_report_count: existingMatches[0].verified_report_count + 1,
-            is_archived: false, 
+            is_archived: false,
             updated_at: new Date().toISOString()
           }).eq('id', scammerId);
         }
@@ -153,7 +164,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   const handleToggleArchive = async (scammerId: string, currentStatus: boolean, name: string) => {
     const action = currentStatus ? "UNARCHIVE" : "ARCHIVE (HIDE)";
     if (!confirm(`Are you sure you want to ${action} the record for ${name}?`)) return;
-    
+
     setProcessingId(scammerId);
     await supabase.from('scammers').update({ is_archived: !currentStatus }).eq('id', scammerId);
     setScammers(scammers.map(s => s.id === scammerId ? { ...s, is_archived: !currentStatus } : s));
@@ -164,7 +175,6 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     if (!confirm(`Mark this dispute as ${newStatus.toUpperCase()}?`)) return;
     setProcessingId(disputeId);
     try {
-      // Added .select() to force a response from Supabase
       const { data, error } = await supabase
         .from('disputes')
         .update({ status: newStatus })
@@ -184,8 +194,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   const handleAskForEvidence = async (dispute: any) => {
     try {
       setProcessingId(dispute.id);
-      
-      // Added .select() to force a response from Supabase
+
       const { data, error } = await supabase
         .from('disputes')
         .update({ status: 'awaiting_evidence' })
@@ -194,14 +203,14 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
 
       if (error) throw error;
       if (!data || data.length === 0) throw new Error("Update blocked by Database Security Policy.");
-      
+
       setDisputes(disputes.map(d => d.id === dispute.id ? { ...d, status: 'awaiting_evidence' } : d));
-      
+
       const subject = encodeURIComponent(`VANGARD Registry: Evidence Required for Dispute`);
       const body = encodeURIComponent(
         `Hello,\n\nWe are reviewing your dispute regarding the record for: ${dispute.scammers?.primary_name || 'the reported entity'}.\n\nTo proceed with an investigation, we require supporting evidence. Please reply directly to this email and attach any relevant screenshots, transaction receipts, or conversation logs.\n\nThank you,\nVANGARD Moderation Team`
       );
-      
+
       window.location.href = `mailto:${dispute.contact_email}?subject=${subject}&body=${body}`;
     } catch (err: any) {
       alert("Error: " + err.message);
@@ -217,8 +226,8 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
       if (error) throw error;
       setCategories([...categories, data].sort((a, b) => a.name.localeCompare(b.name)));
       setNewCategory('');
-    } catch (err: any) { 
-      alert(err.message); 
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -238,7 +247,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   const handleUserAction = async (userId: string, action: 'ban' | 'suspend' | 'restore') => {
     const actionText = action === 'ban' ? 'Archive/Ban' : action === 'suspend' ? 'Suspend for 7 Days' : 'Restore';
     if (!confirm(`Are you sure you want to ${actionText} this user?`)) return;
-    
+
     setProcessingId(userId);
     try {
       let updates: any = {};
@@ -272,11 +281,49 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
     users: "User Management"
   };
 
+  // -----------------------------------------------------
+  // Filtering Logic for Tabs
+  // -----------------------------------------------------
+  const filteredReports = reports.filter(r => 
+    searchQuery === '' || 
+    r.reported_name?.toLowerCase().includes(searchQuery) ||
+    r.phone_input?.toLowerCase().includes(searchQuery) ||
+    r.gcash_input?.toLowerCase().includes(searchQuery) ||
+    r.description?.toLowerCase().includes(searchQuery) ||
+    r.category?.toLowerCase().includes(searchQuery)
+  );
+
+  const filteredScammers = scammers.filter(s => 
+    searchQuery === '' ||
+    s.primary_name?.toLowerCase().includes(searchQuery) ||
+    s.phone_numbers?.some((p: string) => p.toLowerCase().includes(searchQuery)) ||
+    s.gcash_numbers?.some((g: string) => g.toLowerCase().includes(searchQuery)) ||
+    s.facebook_links?.some((f: string) => f.toLowerCase().includes(searchQuery))
+  );
+
+  const filteredDisputes = disputes.filter(d => 
+    searchQuery === '' ||
+    d.scammers?.primary_name?.toLowerCase().includes(searchQuery) ||
+    d.contact_email?.toLowerCase().includes(searchQuery) ||
+    d.reason?.toLowerCase().includes(searchQuery)
+  );
+
+  const filteredCategories = categories.filter(c => 
+    searchQuery === '' ||
+    c.name?.toLowerCase().includes(searchQuery)
+  );
+
+  const filteredUsers = users.filter(u => 
+    searchQuery === '' ||
+    u.id?.toLowerCase().includes(searchQuery) ||
+    u.role?.toLowerCase().includes(searchQuery)
+  );
+
   return (
     <div className="w-full mx-auto max-w-6xl animate-in fade-in duration-500">
-      
+
       {/* Header */}
-      <div className="flex items-center gap-4 mb-8 border-b border-gray-200 dark:border-gray-800 pb-6">
+      <div className="flex items-center gap-4 mb-6 border-b border-gray-200 dark:border-gray-800 pb-6">
         <div className="bg-red-50 dark:bg-vangard-primary/10 p-3.5 rounded-2xl border border-red-100 dark:border-vangard-primary/20 shadow-sm">
           <ShieldCheck className="w-8 h-8 text-vangard-primary" />
         </div>
@@ -288,6 +335,29 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
         </div>
       </div>
 
+      {!loading && (
+        <div className="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <form onSubmit={handleSearchSubmit} className="w-full sm:max-w-md relative">
+            <div className="absolute inset-y-0 left-0 flex items-center pl-4 pointer-events-none">
+              <Search className="w-4 h-4 text-gray-400" />
+            </div>
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder={`Search ${tabTitles[tab].toLowerCase()}...`}
+              className="w-full pl-11 pr-24 py-3 bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all text-sm font-medium text-gray-900 dark:text-white shadow-sm"
+            />
+            <button
+              type="submit"
+              className="absolute inset-y-1.5 right-1.5 px-4 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-xs font-bold transition-colors shadow-sm"
+            >
+              Search
+            </button>
+          </form>
+        </div>
+      )}
+
       {loading && (
         <div className="p-20 flex flex-col items-center justify-center text-gray-400">
           <div className="w-10 h-10 border-4 border-gray-200 dark:border-gray-700 border-t-vangard-primary rounded-full animate-spin mb-4"></div>
@@ -297,7 +367,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
 
       {!loading && (
         <>
-          {/* TAB 1: PENDING REPORTS (NOW TABULAR) */}
+          {/* Pending Tab */}
           {tab === 'pending' && (
              <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
                <div className="overflow-x-auto">
@@ -311,10 +381,10 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                     {reports.length === 0 ? (
-                       <tr><td colSpan={4} className="text-center py-12 text-gray-500 font-bold">No pending reports found.</td></tr>
+                     {filteredReports.length === 0 ? (
+                       <tr><td colSpan={4} className="text-center py-12 text-gray-500 font-bold">No pending reports found matching "{searchQuery}".</td></tr>
                      ) : (
-                       reports.map(report => (
+                       filteredReports.map(report => (
                          <tr key={report.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                            <td className="px-6 py-5">
                              <div className="text-[10px] font-bold text-gray-400 mb-1">{new Date(report.created_at).toLocaleDateString()}</div>
@@ -348,7 +418,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
              </div>
           )}
 
-          {/* TAB 2: VERIFIED SCAMMERS DATABASE */}
+          {/* Scammers Tab */}
           {tab === 'scammers' && (
              <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
                <div className="overflow-x-auto">
@@ -363,10 +433,10 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                     {scammers.length === 0 ? (
-                       <tr><td colSpan={5} className="text-center py-12 text-gray-500 font-bold">No verified scammers found.</td></tr>
+                     {filteredScammers.length === 0 ? (
+                       <tr><td colSpan={5} className="text-center py-12 text-gray-500 font-bold">No verified scammers found matching "{searchQuery}".</td></tr>
                      ) : (
-                       scammers.map(scammer => (
+                       filteredScammers.map(scammer => (
                          <tr key={scammer.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors ${scammer.is_archived ? 'opacity-50' : ''}`}>
                            <td className="px-6 py-5 font-black text-gray-900 dark:text-white whitespace-nowrap text-base">{scammer.primary_name}</td>
                            <td className="px-6 py-5">
@@ -381,13 +451,13 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                               </span>
                            </td>
                            <td className="px-6 py-5 text-center">
-                             {scammer.is_archived 
+                             {scammer.is_archived
                                ? <span className="bg-yellow-100 dark:bg-yellow-500/10 text-yellow-700 dark:text-yellow-500 px-3 py-1.5 rounded-full text-xs font-bold">Archived</span>
                                : <span className="bg-green-100 dark:bg-green-500/10 text-green-700 dark:text-green-500 px-3 py-1.5 rounded-full text-xs font-bold">Active</span>
                              }
                            </td>
                            <td className="px-6 py-5 text-right">
-                             <button 
+                             <button
                                onClick={() => handleToggleArchive(scammer.id, scammer.is_archived, scammer.primary_name)}
                                disabled={processingId === scammer.id}
                                className="text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white bg-gray-100 dark:bg-vangard-dark border border-gray-200 dark:border-gray-700 px-4 py-2 rounded-xl font-bold transition-colors inline-flex items-center gap-2 text-xs disabled:opacity-50"
@@ -404,7 +474,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
              </div>
           )}
 
-          {/* TAB 3: DISPUTES */}
+          {/* Disputes Tab */}
           {tab === 'disputes' && (
              <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
                <div className="overflow-x-auto">
@@ -420,10 +490,10 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                     {disputes.length === 0 ? (
-                       <tr><td colSpan={6} className="text-center py-12 text-gray-500 font-bold">No active disputes found.</td></tr>
+                     {filteredDisputes.length === 0 ? (
+                       <tr><td colSpan={6} className="text-center py-12 text-gray-500 font-bold">No active disputes found matching "{searchQuery}".</td></tr>
                      ) : (
-                       disputes.map(dispute => (
+                       filteredDisputes.map(dispute => (
                          <tr key={dispute.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                            <td className="px-6 py-5 whitespace-nowrap text-xs font-bold text-gray-500">{new Date(dispute.created_at).toLocaleDateString()}</td>
                            <td className="px-6 py-5 font-black text-gray-900 dark:text-white whitespace-nowrap">{dispute.scammers?.primary_name || 'Deleted Record'}</td>
@@ -433,7 +503,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                               <span className={`px-2 py-1 rounded-md ${
                                 dispute.status === 'pending' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/10 dark:text-yellow-500' :
                                 dispute.status === 'awaiting_evidence' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-500' :
-                                dispute.status === 'resolved' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-500' : 
+                                dispute.status === 'resolved' ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-500' :
                                 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400'
                               }`}>{dispute.status.replace('_', ' ')}</span>
                            </td>
@@ -455,19 +525,19 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
              </div>
           )}
 
-          {/* TAB 4: CATEGORIES */}
+          {/* Categories Tab */}
           {tab === 'categories' && (
             <div className="max-w-3xl">
               <form onSubmit={handleAddCategory} className="mb-8 flex flex-col md:flex-row gap-3">
-                <input 
-                  type="text" 
-                  value={newCategory} 
-                  onChange={(e) => setNewCategory(e.target.value)} 
-                  placeholder="Enter new category name..." 
+                <input
+                  type="text"
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value)}
+                  placeholder="Enter new category name..."
                   className="flex-1 p-4 bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-700 rounded-2xl focus:ring-4 focus:ring-red-500/20 focus:border-vangard-primary outline-none text-gray-900 dark:text-white font-medium shadow-sm transition-all"
                 />
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:scale-105 px-8 py-4 rounded-2xl font-black flex justify-center items-center gap-2 shadow-lg transition-transform"
                 >
                   <Plus className="w-5 h-5" /> Add Category
@@ -483,14 +553,14 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                    {categories.length === 0 ? (
-                       <tr><td colSpan={2} className="text-center py-10 text-gray-500 font-bold">No categories exist yet.</td></tr>
+                    {filteredCategories.length === 0 ? (
+                       <tr><td colSpan={2} className="text-center py-10 text-gray-500 font-bold">No categories exist matching "{searchQuery}".</td></tr>
                     ) : (
-                      categories.map(c => (
+                      filteredCategories.map(c => (
                         <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                           <td className="px-8 py-5 font-black text-gray-900 dark:text-white text-base">{c.name}</td>
                           <td className="px-8 py-5 text-right">
-                            <button 
+                            <button
                               onClick={() => handleDeleteCategory(c.id, c.name)}
                               disabled={processingId === c.id}
                               className="text-red-500 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 p-2.5 rounded-xl transition-colors disabled:opacity-50 inline-flex items-center shadow-sm"
@@ -508,7 +578,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
             </div>
           )}
 
-          {/* TAB 5: USERS */}
+          {/* Users Tab */}
           {tab === 'users' && (
              <div className="bg-white dark:bg-vangard-card rounded-3xl border border-gray-200 dark:border-gray-800 shadow-xl overflow-hidden">
                <div className="overflow-x-auto">
@@ -522,10 +592,10 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                     {users.length === 0 ? (
-                       <tr><td colSpan={4} className="text-center py-12 text-gray-500 font-bold">No users found.</td></tr>
+                     {filteredUsers.length === 0 ? (
+                       <tr><td colSpan={4} className="text-center py-12 text-gray-500 font-bold">No users found matching "{searchQuery}".</td></tr>
                      ) : (
-                       users.map(user => (
+                       filteredUsers.map(user => (
                          <tr key={user.id} className={`hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors ${user.status !== 'active' ? 'opacity-70' : ''}`}>
                            <td className="px-6 py-5 font-black text-gray-900 dark:text-white text-xs truncate max-w-[200px]">{user.id}</td>
                            <td className="px-6 py-5 uppercase text-[10px] font-bold tracking-wider">{user.role}</td>
@@ -541,7 +611,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                              )}
                            </td>
                            <td className="px-6 py-5 text-right space-x-2 whitespace-nowrap">
-                             {user.role !== 'admin' && ( // Prevent banning other admins
+                             {user.role !== 'admin' && (
                                user.status === 'active' ? (
                                  <>
                                    <button onClick={() => handleUserAction(user.id, 'suspend')} disabled={processingId === user.id} className="text-yellow-600 bg-yellow-50 hover:bg-yellow-100 dark:text-yellow-400 dark:bg-yellow-500/10 dark:hover:bg-yellow-500/20 px-3 py-1.5 rounded-lg font-bold transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1"><Clock className="w-3 h-3"/> Suspend (7d)</button>
@@ -560,7 +630,6 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                </div>
              </div>
           )}
-
         </>
       )}
     </div>
