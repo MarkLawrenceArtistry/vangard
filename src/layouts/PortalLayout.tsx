@@ -1,17 +1,24 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
-import { User, Scale, Menu, X, Moon, Sun, LogOut, Clock, Database, ArrowLeft, Tags, Users, MessageSquareWarning  } from 'lucide-react';
+import { User, Scale, Menu, X, Moon, Sun, LogOut, Clock, Database, ArrowLeft, Tags, Users, MessageSquareWarning, WifiOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export default function PortalLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDark, setIsDark] = useState(false);
   const [isMod, setIsMod] = useState(false);
-  
+  const [isOffline, setIsOffline] = useState(!navigator.onLine); // NEW STATE
+
   const location = useLocation();
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Offline Listener
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     const savedTheme = localStorage.getItem('theme');
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
     if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
@@ -23,11 +30,10 @@ export default function PortalLayout() {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) { navigate('/login'); return; }
-      
+
       const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-      
+
       if (profile) {
-        // --- BAN / SUSPENSION ENFORCEMENT ---
         if (profile.status === 'banned') {
           alert('Your account has been permanently banned from VANGARD.');
           await supabase.auth.signOut();
@@ -41,7 +47,6 @@ export default function PortalLayout() {
             navigate('/login');
             return;
           } else {
-            // Auto-restore if time passed
             await supabase.from('profiles').update({ status: 'active', suspended_until: null }).eq('id', session.user.id);
           }
         }
@@ -49,6 +54,11 @@ export default function PortalLayout() {
       }
     };
     checkSession();
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, [navigate]);
 
   useEffect(() => setIsSidebarOpen(false), [location.pathname]);
@@ -77,7 +87,15 @@ export default function PortalLayout() {
 
   return (
     <div className="min-h-screen flex bg-gray-50 dark:bg-vangard-dark transition-colors duration-300">
-      <header className="md:hidden fixed top-0 left-0 right-0 h-16 bg-white/80 dark:bg-vangard-card/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 z-40">
+      
+      {/* Offline Banner */}
+      {isOffline && (
+        <div className="absolute top-0 left-0 right-0 bg-red-500 text-white text-xs font-bold px-4 py-2.5 flex justify-center items-center gap-2 z-[100]">
+          <WifiOff className="w-4 h-4" /> You are currently offline. Your actions will not be saved.
+        </div>
+      )}
+
+      <header className={`md:hidden fixed left-0 right-0 h-16 bg-white/80 dark:bg-vangard-card/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800 flex items-center justify-between px-4 z-40 ${isOffline ? 'top-10' : 'top-0'}`}>
         <div className="flex items-center gap-2">
           <img src="/logo-placeholder.png" alt="Vangard" className="w-8 h-8 rounded-lg object-cover bg-red-100" />
           <span className="font-black text-lg tracking-tight">PORTAL</span>
