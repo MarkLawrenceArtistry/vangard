@@ -14,6 +14,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const [displayName, setDisplayName] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -28,26 +30,30 @@ export default function Login() {
     const redirectTo = new URLSearchParams(location.search).get('redirect') || '/dashboard';
 
     try {
-      if (isLogin) {
+        if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
         navigate(redirectTo);
-      } else {
-        const { data, error } = await supabase.auth.signUp({ email, password });
+        } else {
+        const { data, error } = await supabase.auth.signUp({ 
+            email, 
+            password,
+            options: { data: { display_name: displayName } }
+        });
         if (error) throw error;
 
         if (data.session) {
-          navigate(redirectTo);
+            navigate(redirectTo);
         } else {
-          alert("Success! Please check your email for the confirmation link. (Turn off 'Confirm Email' in Supabase to skip this step)");
+            alert("Success! Please check your email for the confirmation link. (Turn off 'Confirm Email' in Supabase to skip this step)");
         }
-      }
+        }
     } catch (err: any) {
-      setError(err.message);
+        setError(err.message);
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+    };
 
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-8rem)] px-4 w-full py-8">
@@ -91,6 +97,16 @@ export default function Login() {
             </div>
           )}
 
+          {!isLogin && (
+            <input
+                type="text"
+                placeholder="Display Name"
+                required
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="w-full p-3.5 sm:p-4 bg-gray-50 dark:bg-vangard-dark border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all font-medium text-sm sm:text-base"
+            />
+            )}
           <input
             type="email"
             placeholder="Email address"

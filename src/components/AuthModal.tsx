@@ -11,6 +11,7 @@ interface AuthModalProps {
 export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState(''); // NEW STATE
   const [isLogin, setIsLogin] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +28,11 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       } else {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({ 
+          email, 
+          password,
+          options: { data: { display_name: displayName } } // PASS DISPLAY NAME
+        });
         if (error) throw error;
         alert("Check your email for the confirmation link!");
       }
@@ -41,8 +46,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
       <div className="bg-white dark:bg-vangard-card w-full max-w-md rounded-2xl sm:rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 relative max-h-[95dvh] flex flex-col overflow-hidden">
-        
-        {/* Close Button - Stays fixed in the corner */}
+
         <button
           onClick={onClose}
           className="absolute top-4 right-4 z-10 text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors bg-gray-100/80 dark:bg-gray-800/80 backdrop-blur-sm p-2 rounded-full"
@@ -50,7 +54,6 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
           <X className="w-5 h-5" />
         </button>
 
-        {/* Scrollable Content Area */}
         <div className="p-6 sm:p-8 overflow-y-auto hide-scrollbar">
           <div className="flex justify-center mb-4 sm:mb-6 mt-2 sm:mt-0">
             <div className="bg-red-50 dark:bg-vangard-dark p-3 sm:p-4 rounded-full border border-red-100 dark:border-gray-700 shadow-sm">
@@ -60,20 +63,19 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
 
           <h2 className="text-2xl sm:text-3xl font-black text-center mb-6 text-gray-900 dark:text-white">Account Required</h2>
 
-          {/* Upgraded Info Box */}
           <div className="bg-gray-50 dark:bg-vangard-dark rounded-xl p-4 sm:p-5 mb-6 text-[13px] sm:text-sm text-gray-600 dark:text-gray-300 space-y-2 border border-gray-100 dark:border-gray-700 font-medium">
             <p className="font-bold text-gray-900 dark:text-white mb-3">To complete this action, please sign in:</p>
             <ul className="space-y-2.5">
               <li className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" /> 
+                <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
                 Track the live status of your reports.
               </li>
               <li className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" /> 
+                <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
                 Ensure accountability & prevent defamation.
               </li>
               <li className="flex items-start gap-2.5">
-                <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" /> 
+                <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
                 Maintain community safety & stop bots.
               </li>
             </ul>
@@ -81,6 +83,18 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
 
           <form onSubmit={handleEmailAuth} className="space-y-3.5 sm:space-y-4">
             {error && <div className="text-red-500 bg-red-50 dark:bg-red-500/10 p-3 rounded-xl text-sm font-bold text-center border border-red-200 dark:border-red-900/30">{error}</div>}
+
+            {/* NEW DISPLAY NAME INPUT FOR SIGNUPS */}
+            {!isLogin && (
+              <input
+                type="text"
+                placeholder="Display Name"
+                required
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="w-full p-3.5 sm:p-4 bg-gray-50 dark:bg-vangard-dark border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-red-500/20 focus:border-vangard-primary outline-none transition-all font-medium text-sm sm:text-base"
+              />
+            )}
 
             <input
               type="email"

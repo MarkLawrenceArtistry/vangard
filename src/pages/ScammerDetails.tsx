@@ -33,8 +33,14 @@ export default function ScammerDetails() {
       const { data: scamData } = await supabase.from('scammers').select('*').eq('id', id).single();
       if (scamData) setScammer(scamData);
 
-      const { data: reportData } = await supabase.from('reports').select('*').eq('scammer_id', id).eq('status', 'approved').order('created_at', { ascending: false });
-      if (reportData) setReports(reportData);
+      const { data: reportData } = await supabase
+  .from('reports')
+  .select('*, profiles(display_name, email)') // Fetch reporter info
+  .eq('scammer_id', id)
+  .eq('status', 'approved')
+  .order('created_at', { ascending: false });
+
+if (reportData) setReports(reportData);
       setLoading(false);
     };
     fetchData();
@@ -116,16 +122,23 @@ export default function ScammerDetails() {
         
         <div className="space-y-4">
           {reports.map((report) => (
-            <div key={report.id} className="bg-white dark:bg-vangard-card p-6 md:p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
-              <div className="flex justify-between items-center mb-4 border-b border-gray-100 dark:border-gray-800 pb-4">
-                <span className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider">{report.category}</span>
-                <span className="text-xs font-bold text-gray-400">{new Date(report.created_at).toLocaleDateString()}</span>
-              </div>
-              <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap font-medium break-words break-all">
-                {linkify(report.description)}
-              </p>
-            </div>
-          ))}
+  <div key={report.id} className="bg-white dark:bg-vangard-card p-6 md:p-8 rounded-3xl border border-gray-200 dark:border-gray-800 shadow-sm">
+    <div className="flex justify-between items-center mb-4 border-b border-gray-100 dark:border-gray-800 pb-4">
+      
+      <div className="flex items-center gap-3">
+        <span className="bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider">{report.category}</span>
+        <span className="text-xs text-gray-500">
+          Reported by: <strong className="text-gray-900 dark:text-gray-200">{report.profiles?.display_name || report.profiles?.email || 'Anonymous'}</strong>
+        </span>
+      </div>
+
+      <span className="text-xs font-bold text-gray-400">{new Date(report.created_at).toLocaleDateString()}</span>
+    </div>
+    <p className="text-gray-700 dark:text-gray-300 text-sm leading-relaxed whitespace-pre-wrap font-medium break-words break-all">
+      {linkify(report.description)}
+    </p>
+  </div>
+))}
         </div>
       </div>
       <AuthModal 

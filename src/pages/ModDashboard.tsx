@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { ShieldCheck, Archive, Trash2, Edit2, Plus, Mail, Ban, Clock, CheckCircle, XCircle, Search } from 'lucide-react';
+import { ShieldCheck, Archive, Trash2, Edit2, Plus, Mail, Ban, Clock, CheckCircle, XCircle, Search, Eye, X } from 'lucide-react';
+
 import { useNavigate } from 'react-router-dom';
 
 interface ModDashboardProps {
@@ -29,6 +30,8 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
   // Search states
   const [searchInput, setSearchInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+
+  const [selectedReport, setSelectedReport] = useState<any>(null);
 
   const navigate = useNavigate();
 
@@ -428,9 +431,10 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                              </div>
                            </td>
                            <td className="px-6 py-4 text-right space-x-2 whitespace-nowrap align-top pt-6">
-                             <button onClick={() => handleApproveReport(report)} disabled={processingId === report.id} className="text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5"/> Verify</button>
-                             <button onClick={() => handleRejectReport(report.id)} disabled={processingId === report.id} className="text-red-700 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5"/> Reject</button>
-                           </td>
+                            <button onClick={() => setSelectedReport(report)} className="text-blue-700 bg-blue-50 hover:bg-blue-100 dark:text-blue-400 dark:bg-blue-500/10 dark:hover:bg-blue-500/20 px-3 py-1.5 rounded-lg transition-colors text-xs inline-flex items-center gap-1.5"><Eye className="w-3.5 h-3.5"/> View</button>
+                            <button onClick={() => handleApproveReport(report)} disabled={processingId === report.id} className="text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-400 dark:bg-green-500/10 dark:hover:bg-green-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1.5"><CheckCircle className="w-3.5 h-3.5"/> Verify</button>
+                            <button onClick={() => handleRejectReport(report.id)} disabled={processingId === report.id} className="text-red-700 bg-red-50 hover:bg-red-100 dark:text-red-400 dark:bg-red-500/10 dark:hover:bg-red-500/20 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50 text-xs inline-flex items-center gap-1.5"><XCircle className="w-3.5 h-3.5"/> Reject</button>
+                            </td>
                          </tr>
                        ))
                      )}
@@ -721,6 +725,68 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
                 {processingId === selectedDispute?.id ? 'Sending...' : 'Send Message'}
                 </button>
             </div>
+            </div>
+        </div>
+        )}
+
+        {selectedReport && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <div className="bg-white dark:bg-vangard-card w-full max-w-2xl rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 relative max-h-[90vh] flex flex-col overflow-hidden">
+            
+            <div className="p-6 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center bg-gray-50 dark:bg-vangard-dark">
+                <h3 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
+                <Eye className="w-5 h-5 text-vangard-primary"/> Full Incident Report
+                </h3>
+                <button onClick={() => setSelectedReport(null)} className="text-gray-400 hover:text-gray-900 dark:hover:text-white p-2 rounded-full bg-gray-200/50 dark:bg-gray-800 transition-colors">
+                <X className="w-4 h-4" />
+                </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-5">
+                <div className="grid grid-cols-2 gap-4 bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl border border-gray-100 dark:border-gray-800">
+                <div>
+                    <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Target Name</span>
+                    <span className="text-gray-900 dark:text-white font-medium">{selectedReport.reported_name}</span>
+                </div>
+                <div>
+                    <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Category</span>
+                    <span className="text-gray-900 dark:text-white font-medium">{selectedReport.category}</span>
+                </div>
+                <div>
+                    <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Phone/GCash Info</span>
+                    <span className="text-gray-900 dark:text-white font-medium">{selectedReport.phone_input || selectedReport.gcash_input || 'N/A'}</span>
+                </div>
+                <div>
+                    <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">Facebook Link</span>
+                    {selectedReport.facebook_input && selectedReport.facebook_input !== 'N/A' ? (
+                    <a href={selectedReport.facebook_input} target="_blank" rel="noreferrer" className="text-blue-500 hover:underline break-all font-medium">{selectedReport.facebook_input}</a>
+                    ) : <span className="text-gray-900 dark:text-white font-medium">N/A</span>}
+                </div>
+                </div>
+
+                <div>
+                <span className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Detailed Incident Description</span>
+                <div className="bg-gray-50 dark:bg-gray-900/50 p-4 rounded-xl text-sm text-gray-800 dark:text-gray-200 border border-gray-100 dark:border-gray-800 whitespace-pre-wrap leading-relaxed">
+                    {selectedReport.description}
+                </div>
+                </div>
+            </div>
+
+            <div className="p-6 border-t border-gray-100 dark:border-gray-800 flex justify-end gap-3 bg-gray-50 dark:bg-vangard-dark">
+                <button 
+                onClick={() => { handleRejectReport(selectedReport.id); setSelectedReport(null); }} 
+                className="bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-500/20 px-5 py-2.5 rounded-xl font-bold transition-colors text-sm"
+                >
+                Reject Report
+                </button>
+                <button 
+                onClick={() => { handleApproveReport(selectedReport); setSelectedReport(null); }} 
+                className="bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold transition-colors text-sm shadow-md"
+                >
+                Verify & Approve
+                </button>
+            </div>
+
             </div>
         </div>
         )}
