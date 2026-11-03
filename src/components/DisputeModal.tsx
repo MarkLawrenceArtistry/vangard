@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { X, Loader2, MessageSquareWarning } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Loader2, MessageSquareWarning, Clock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface DisputeModalProps {
@@ -15,26 +15,40 @@ export default function DisputeModal({ isOpen, onClose, scammerId, scammerName, 
   const [email, setEmail] = useState(defaultEmail);
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
+
+  // Calculate cooldown timer on mount
+  useEffect(() => {
+    if (isOpen) {
+      const lastDisputeTime = localStorage.getItem('lastDisputeTime');
+      if (lastDisputeTime) {
+        const diff = Date.now() - parseInt(lastDisputeTime, 10);
+        const cooldownPeriod = 24 * 60 * 60 * 1000;
+        
+        if (diff < cooldownPeriod) {
+          const remainingMs = cooldownPeriod - diff;
+          const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+          const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+          setCooldownRemaining(`${hours}h ${minutes}m`);
+        } else {
+          setCooldownRemaining(null);
+        }
+      } else {
+        setCooldownRemaining(null);
+      }
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Cooldown check: Prevent users from spamming disputes (24-hour limit)
-    const lastDisputeTime = localStorage.getItem('lastDisputeTime');
-    if (lastDisputeTime) {
-      const diff = Date.now() - parseInt(lastDisputeTime, 10);
-      if (diff < 24 * 60 * 60 * 1000) {
-        alert("You can only submit one dispute every 24 hours. Please wait before submitting again.");
-        return;
-      }
-    }
+    if (cooldownRemaining) return;
 
     setLoading(true);
 
     try {
-      // Ensure we have the user ID, falling back to fetching it if the modal opened before the auth listener finished
       let currentUserId = userId;
       if (!currentUserId) {
         const { data: { session } } = await supabase.auth.getSession();
@@ -81,17 +95,26 @@ export default function DisputeModal({ isOpen, onClose, scammerId, scammerName, 
           <h2 className="text-2xl font-black text-center mb-1 text-gray-900 dark:text-white">File a Dispute</h2>
           <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-6 font-medium">Disputing record for: <strong className="text-gray-900 dark:text-white">{scammerName}</strong></p>
 
+          {cooldownRemaining && (
+            <div className="mb-5 bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-900/30 p-3.5 rounded-xl flex items-start gap-3">
+              <Clock className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+              <p className="text-orange-700 dark:text-orange-400 text-xs font-medium leading-relaxed">
+                You've recently submitted a dispute. To prevent spam, please wait <strong className="font-black text-orange-600 dark:text-orange-300">{cooldownRemaining}</strong> before filing another one.
+              </p>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Contact Email</label>
-              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500 outline-none transition-all text-sm font-medium" />
+              <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} disabled={!!cooldownRemaining} className="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500 outline-none transition-all text-sm font-medium disabled:opacity-60" />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">Reason for Dispute</label>
-              <textarea required value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Explain why this record is inaccurate or resolved..." className="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500 outline-none transition-all text-sm font-medium h-32 resize-none" />
+              <textarea required value={reason} onChange={(e) => setReason(e.target.value)} disabled={!!cooldownRemaining} placeholder="Explain why this record is inaccurate or resolved..." className="w-full p-3 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-yellow-500/20 focus:border-yellow-500 outline-none transition-all text-sm font-medium h-32 resize-none disabled:opacity-60" />
             </div>
-            <button type="submit" disabled={loading} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-black py-3.5 rounded-xl transition-all shadow-md flex justify-center items-center mt-2">
-              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Submit Dispute'}
+            <button type="submit" disabled={loading || !!cooldownRemaining} className="w-full bg-yellow-500 hover:bg-yellow-600 text-white font-black py-3.5 rounded-xl transition-all shadow-md flex justify-center items-center mt-2 disabled:opacity-50 disabled:cursor-not-allowed">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : (cooldownRemaining ? 'Cooldown Active' : 'Submit Dispute')}
             </button>
           </form>
         </div>

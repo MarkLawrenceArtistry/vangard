@@ -1,24 +1,59 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { MessageSquareWarning, Clock, Mail, CheckCircle, XCircle, X } from 'lucide-react';
+import { MessageSquareWarning, Clock, Mail, CheckCircle, XCircle, X, ShieldAlert, Timer } from 'lucide-react';
 
 export default function MyDisputes() {
   const [disputes, setDisputes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [activeMessage, setActiveMessage] = useState("");
+  const [cooldownRemaining, setCooldownRemaining] = useState<string | null>(null);
 
   useEffect(() => {
+    // 1. Calculate cooldown timer
+    const updateCooldown = () => {
+      const lastDisputeTime = localStorage.getItem('lastDisputeTime');
+      if (lastDisputeTime) {
+        const diff = Date.now() - parseInt(lastDisputeTime, 10);
+        const cooldownPeriod = 24 * 60 * 60 * 1000;
+        if (diff < cooldownPeriod) {
+          const remainingMs = cooldownPeriod - diff;
+          const hours = Math.floor(remainingMs / (1000 * 60 * 60));
+          const minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+          setCooldownRemaining(`${hours}h ${minutes}m`);
+        } else {
+          setCooldownRemaining(null);
+        }
+      }
+    };
+
+    updateCooldown();
+    const interval = setInterval(updateCooldown, 60000); // Update every minute
+
+    // 2. Fetch user's disputes
     const fetchDisputes = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data, error } = await supabase.from('disputes').select('*, scammers(primary_name)').eq('user_id', session.user.id).order('created_at', { ascending: false });
-        if (error) console.error("Error fetching disputes:", error);
-        setDisputes(data || []);
+        // Using .or() as a failsafe to match either UUID or Email for older records
+        const { data, error } = await supabase
+          .from('disputes')
+          .select('*, scammers(primary_name)')
+          .or(`user_id.eq.${session.user.id},contact_email.eq.${session.user.email}`)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error("Error fetching disputes:", error);
+          setFetchError(error.message);
+        } else {
+          setDisputes(data || []);
+        }
       }
       setLoading(false);
     };
     fetchDisputes();
+
+    return () => clearInterval(interval);
   }, []);
 
   const getStatusBadge = (status: string) => {
@@ -35,17 +70,43 @@ export default function MyDisputes() {
 
   return (
     <div className="w-full mx-auto max-w-4xl">
-      <div className="bg-white dark:bg-vangard-card p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm mb-8">
-        <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-          <MessageSquareWarning className="text-yellow-500 w-6 h-6" /> My Disputes
-        </h1>
-        <p className="text-gray-500 dark:text-gray-400 font-medium text-xs md:text-sm mt-1">Track the status of your submitted disputes.</p>
+      <div className="bg-white dark:bg-vangard-card p-6 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm mb-6 flex flex-col md:flex-row justify-between md:items-center gap-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
+            <MessageSquareWarning className="text-yellow-500 w-6 h-6" /> My Disputes
+          </h1>
+          <p className="text-gray-500 dark:text-gray-400 font-medium text-xs md:text-sm mt-1">Track the status of your submitted disputes.</p>
+        </div>
+        
+        {cooldownRemaining && (
+          <div className="bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-900/30 px-4 py-2 rounded-xl flex items-center gap-2">
+            <Timer className="w-4 h-4 text-orange-500" />
+            <span className="text-orange-700 dark:text-orange-400 text-xs font-bold">
+              Cooldown: {cooldownRemaining}
+            </span>
+          </div>
+        )}
       </div>
 
-      {disputes.length === 0 ? (
+      {fetchError && (
+        <div className="mb-8 bg-red-50 dark:bg-red-500/10 border-l-4 border-red-500 p-5 rounded-r-xl shadow-sm flex items-start gap-4">
+          <ShieldAlert className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-black text-red-800 dark:text-red-400 text-lg">Database Access Error</h3>
+            <p className="text-red-700 dark:text-red-300 text-sm font-medium mt-1 mb-2">
+              {fetchError}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {disputes.length === 0 && !fetchError ? (
         <div className="bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-2xl p-10 text-center">
           <MessageSquareWarning className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
-          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-300">No disputes submitted</h3>
+          <h3 className="text-lg font-bold text-gray-900 dark:text-gray-300">No disputes found</h3>
+          <p className="text-gray-500 dark:text-gray-400 text-sm font-medium mt-2 max-w-md mx-auto">
+            If you recently submitted a dispute and it is missing, your Supabase Row Level Security (RLS) policies might be blocking you from reading your own data.
+          </p>
         </div>
       ) : (
         <div className="grid gap-4">
@@ -59,9 +120,9 @@ export default function MyDisputes() {
                 <p className="text-xs text-gray-500 dark:text-gray-400 font-medium mb-1">Submitted: {new Date(dispute.created_at).toLocaleDateString()}</p>
                 <p className="text-sm text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-lg border border-gray-100 dark:border-gray-700 mt-2">"{dispute.reason}"</p>
               </div>
-              
+
               {dispute.admin_message && (
-                <button 
+                <button
                   onClick={() => { setActiveMessage(dispute.admin_message); setMessageModalOpen(true); }}
                   className="shrink-0 bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 px-4 py-2.5 rounded-xl font-bold text-xs transition-colors border border-blue-100 dark:border-blue-900/30"
                 >
