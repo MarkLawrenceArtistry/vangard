@@ -106,7 +106,7 @@ export default function PublicLayout() {
         <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col md:flex-row items-center gap-4 text-center md:text-left text-xs font-medium text-gray-500 dark:text-gray-400">
           <ShieldAlert className="w-6 h-6 text-gray-400 flex-shrink-0" />
           <p>
-            <strong className="text-gray-700 dark:text-gray-300">Disclaimer:</strong> VANGARD is a community-driven tool designed to reduce the chances of, and prevent users from, being scammed. We hold absolutely no legal authority, and we cannot recover funds or "save" users once a scam has occurred. Please exercise extreme caution and transact at your own risk.
+            <strong className="text-gray-700 dark:text-gray-300">Disclaimer:</strong> VANGARD is a community-driven tool designed to reduce the chances of, and prevent users from, being scammed. We hold absolutely no legal authority, and we cannot recover funds or "save" users once a scam has occurred. Please exercise extreme caution and transact at your own risk. Furthermore, this database is not the absolute source of truth. The absence of a record does not guarantee that a person or entity is legitimate.
           </p>
         </div>
       </footer>

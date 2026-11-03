@@ -12,7 +12,8 @@ export default function MyDisputes() {
     const fetchDisputes = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        const { data } = await supabase.from('disputes').select('*, scammers(primary_name)').eq('user_id', session.user.id).order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('disputes').select('*, scammers(primary_name)').eq('user_id', session.user.id).order('created_at', { ascending: false });
+        if (error) console.error("Error fetching disputes:", error);
         setDisputes(data || []);
       }
       setLoading(false);

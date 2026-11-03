@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { User, Clock, CheckCircle, XCircle, FileText, Ban } from 'lucide-react';
 
-interface Report { id: string; reported_name: string; category: string; status: string; created_at: string; }
+interface Report { id: string; reported_name: string; category: string; status: string; created_at: string; moderator_notes?: string; }
 
 export default function Dashboard() {
   const [session, setSession] = useState<any>(null);
@@ -15,12 +15,11 @@ export default function Dashboard() {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setSession(session);
-        
-        // Fetch Profile for Suspension check
+
         const { data: profileData } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         setProfile(profileData);
 
-        const { data } = await supabase.from('reports').select('id, reported_name, category, status, created_at').eq('reporter_id', session.user.id).order('created_at', { ascending: false });
+        const { data } = await supabase.from('reports').select('id, reported_name, category, status, created_at, moderator_notes').eq('reporter_id', session.user.id).order('created_at', { ascending: false });
         setReports(data || []);
       }
       setLoading(false);
@@ -41,8 +40,6 @@ export default function Dashboard() {
 
   return (
     <div className="w-full mx-auto max-w-4xl">
-      
-      {/* SUSPENSION BANNER */}
       {profile?.status === 'suspended' && (
         <div className="mb-6 bg-red-50 dark:bg-red-500/10 border-l-4 border-red-500 p-5 rounded-r-xl shadow-sm flex items-start gap-4">
           <Ban className="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" />
@@ -68,7 +65,7 @@ export default function Dashboard() {
         <h2 className="text-lg md:text-xl font-black text-gray-900 dark:text-white mb-4 flex items-center gap-2">
           <FileText className="text-gray-400 w-5 h-5" /> My Submissions
         </h2>
-        
+
         {reports.length === 0 ? (
           <div className="bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-2xl p-10 text-center flex flex-col items-center">
             <FileText className="w-10 h-10 text-gray-300 dark:text-gray-600 mb-3" />
@@ -77,18 +74,26 @@ export default function Dashboard() {
         ) : (
           <div className="grid gap-4">
             {reports.map((report) => (
-              <div key={report.id} className="bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-xl p-5 flex flex-col md:flex-row justify-between md:items-center gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1.5">
-                    <h3 className="font-bold text-base text-gray-900 dark:text-white">{report.reported_name}</h3>
-                    {getStatusBadge(report.status)}
-                  </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400 font-medium flex items-center gap-2">
-                    <span>{report.category}</span>
-                    <span>•</span>
-                    <span>{new Date(report.created_at).toLocaleDateString()}</span>
+              <div key={report.id} className="bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-xl p-5 flex flex-col justify-between gap-4">
+                <div className="flex flex-col md:flex-row justify-between md:items-center gap-2">
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <h3 className="font-bold text-base text-gray-900 dark:text-white">{report.reported_name}</h3>
+                      {getStatusBadge(report.status)}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 font-medium flex items-center gap-2">
+                      <span>{report.category}</span>
+                      <span>•</span>
+                      <span>{new Date(report.created_at).toLocaleDateString()}</span>
+                    </div>
                   </div>
                 </div>
+                {report.moderator_notes && (
+                  <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg text-sm text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700">
+                    <span className="font-bold block mb-1 text-gray-900 dark:text-white">Moderator Note:</span>
+                    {report.moderator_notes}
+                  </div>
+                )}
               </div>
             ))}
           </div>

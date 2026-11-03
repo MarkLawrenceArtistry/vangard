@@ -19,8 +19,8 @@ export default function Home() {
   const [selectedScammer, setSelectedScammer] = useState<any>(null);
 
   useEffect(() => {
-  supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-}, []);
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSearchQuery(e.target.value);
@@ -31,21 +31,25 @@ export default function Home() {
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!searchQuery.trim()) return;
-    
+
     setIsSearching(true);
     setHasSearched(true);
+
+    const baseQuery = searchQuery.trim();
+    const lowerBase = baseQuery.toLowerCase();
     
-    let query = searchQuery.replace(/[\s\-\(\)]/g, '');
-    if (query.startsWith('09') && query.length === 11) query = '+63' + query.substring(1);
-    query = query.toLowerCase();
-    
+    // Specifically format for phone numbers without disrupting names
+    let phoneQuery = baseQuery.replace(/[\s\-\(\)]/g, '');
+    if (phoneQuery.startsWith('09') && phoneQuery.length === 11) phoneQuery = '+63' + phoneQuery.substring(1);
+    phoneQuery = phoneQuery.toLowerCase();
+
     try {
       const { data, error } = await supabase
         .from('scammers')
         .select('*')
         .eq('is_archived', false)
-        .or(`primary_name.ilike.%${query}%,phone_numbers.cs.{${query}},gcash_numbers.cs.{${query}},facebook_links.cs.{${query}}`);
-        
+        .or(`primary_name.ilike.%${lowerBase}%,phone_numbers.cs.{${phoneQuery}},gcash_numbers.cs.{${phoneQuery}},facebook_links.cs.{${lowerBase}}`);
+
       if (error) throw error;
       setResults(data || []);
     } catch (err: any) {
@@ -56,13 +60,13 @@ export default function Home() {
   };
 
   const handleDisputeClick = (scammer: any) => {
-  setSelectedScammer(scammer);
-  if (!session) {
-    setAuthModalOpen(true);
-  } else {
-    setDisputeModalOpen(true);
-  }
-};
+    setSelectedScammer(scammer);
+    if (!session) {
+      setAuthModalOpen(true);
+    } else {
+      setDisputeModalOpen(true);
+    }
+  };
 
   return (
     <div className="flex flex-col items-center pt-8 md:pt-20 pb-24 w-full">
@@ -102,15 +106,18 @@ export default function Home() {
         <Link to="/wall-of-shame" className="text-[11px] sm:text-xs font-bold text-vangard-primary hover:text-red-600 hover:underline flex items-center gap-1 transition-all">
             <Flame className="w-3.5 h-3.5" /> View Wall of Shame
         </Link>
-        </div>
+      </div>
 
       <div className="w-full max-w-3xl">
         {isSearching && <div className="text-center text-gray-400 font-bold py-10">Scanning Database...</div>}
-        
+
         {!isSearching && hasSearched && results.length === 0 && (
           <div className="bg-green-50 dark:bg-green-900/10 border border-green-200 dark:border-green-500/20 rounded-3xl p-8 text-center shadow-sm">
             <h2 className="text-xl md:text-2xl font-black text-green-700 dark:text-green-400 mb-2">No Records Found</h2>
             <p className="text-green-600/80 dark:text-green-200/70 text-sm max-w-md mx-auto font-medium">We couldn't find any verified scam reports matching "{searchQuery}". Stay vigilant.</p>
+            <p className="text-green-600/80 dark:text-green-200/70 text-xs max-w-md mx-auto font-medium mt-3 border-t border-green-200 dark:border-green-800/40 pt-3">
+              <strong>Please note:</strong> The absence of a record does not guarantee this person is legitimate. Always exercise caution.
+            </p>
           </div>
         )}
 
@@ -119,11 +126,11 @@ export default function Home() {
             <div className="flex items-center gap-2 text-vangard-primary font-black text-base md:text-lg mb-2">
               <AlertOctagon className="w-5 h-5" /> <h2>Found {results.length} Match{results.length > 1 ? 'es' : ''}</h2>
             </div>
-            
+
             {results.map((s) => (
               <div key={s.id} className="bg-white dark:bg-vangard-card border border-gray-200 dark:border-gray-800 rounded-3xl p-6 shadow-lg hover:shadow-xl transition-shadow relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-500 to-red-600"></div>
-                
+
                 <div className="flex flex-col md:flex-row justify-between items-start gap-4 mb-6 mt-1">
                   <div>
                     <h3 className="text-2xl md:text-3xl font-black text-gray-900 dark:text-white tracking-tight mb-1">{s.primary_name}</h3>
@@ -131,19 +138,19 @@ export default function Home() {
                       <Calendar className="w-3.5 h-3.5" /> Updated: {new Date(s.updated_at).toLocaleDateString()}
                     </div>
                   </div>
-                  
+
                   <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full md:w-auto">
-                    <Link 
+                    <Link
                       to={`/scammer/${s.id}`}
                       className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 px-4 py-2.5 rounded-xl flex justify-center items-center gap-2 font-bold text-xs transition-transform hover:scale-105 shadow-md"
                     >
                       <AlertOctagon className="w-4 h-4" /> View {s.verified_report_count} Flags
                     </Link>
                     <button
-                    onClick={() => handleDisputeClick(s)}
-                    className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 px-4 py-2.5 rounded-xl flex justify-center items-center gap-2 font-bold text-xs transition-colors"
+                      onClick={() => handleDisputeClick(s)}
+                      className="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 px-4 py-2.5 rounded-xl flex justify-center items-center gap-2 font-bold text-xs transition-colors"
                     >
-                    <MessageSquareWarning className="w-4 h-4" /> Dispute
+                      <MessageSquareWarning className="w-4 h-4" /> Dispute
                     </button>
                   </div>
                 </div>
@@ -187,21 +194,21 @@ export default function Home() {
         </button>
       </div>
 
-      <AuthModal 
-        isOpen={authModalOpen} 
-        onClose={() => setAuthModalOpen(false)} 
-        onSuccess={() => { setAuthModalOpen(false); setDisputeModalOpen(true); supabase.auth.getSession().then(({ data }) => setSession(data.session)); }} 
-        />
-        {selectedScammer && (
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={() => { setAuthModalOpen(false); setDisputeModalOpen(true); supabase.auth.getSession().then(({ data }) => setSession(data.session)); }}
+      />
+      {selectedScammer && (
         <DisputeModal
-            isOpen={disputeModalOpen}
-            onClose={() => setDisputeModalOpen(false)}
-            scammerId={selectedScammer.id}
-            scammerName={selectedScammer.primary_name}
-            userId={session?.user?.id}
-            defaultEmail={session?.user?.email || ''}
+          isOpen={disputeModalOpen}
+          onClose={() => setDisputeModalOpen(false)}
+          scammerId={selectedScammer.id}
+          scammerName={selectedScammer.primary_name}
+          userId={session?.user?.id}
+          defaultEmail={session?.user?.email || ''}
         />
-        )}
+      )}
     </div>
   );
 }

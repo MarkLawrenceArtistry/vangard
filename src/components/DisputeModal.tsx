@@ -7,7 +7,7 @@ interface DisputeModalProps {
   onClose: () => void;
   scammerId: string;
   scammerName: string;
-  userId: string;
+  userId?: string;
   defaultEmail: string;
 }
 
@@ -20,16 +20,41 @@ export default function DisputeModal({ isOpen, onClose, scammerId, scammerName, 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Cooldown check: Prevent users from spamming disputes (24-hour limit)
+    const lastDisputeTime = localStorage.getItem('lastDisputeTime');
+    if (lastDisputeTime) {
+      const diff = Date.now() - parseInt(lastDisputeTime, 10);
+      if (diff < 24 * 60 * 60 * 1000) {
+        alert("You can only submit one dispute every 24 hours. Please wait before submitting again.");
+        return;
+      }
+    }
+
     setLoading(true);
 
     try {
+      // Ensure we have the user ID, falling back to fetching it if the modal opened before the auth listener finished
+      let currentUserId = userId;
+      if (!currentUserId) {
+        const { data: { session } } = await supabase.auth.getSession();
+        currentUserId = session?.user?.id;
+      }
+
+      if (!currentUserId) {
+        throw new Error("You must be logged in to submit a dispute.");
+      }
+
       const { error } = await supabase.from('disputes').insert({
         scammer_id: scammerId,
-        user_id: userId,
+        user_id: currentUserId,
         contact_email: email,
         reason: reason
       });
+
       if (error) throw error;
+      
+      localStorage.setItem('lastDisputeTime', Date.now().toString());
       alert("Dispute submitted successfully! You can track it in 'My Disputes'.");
       onClose();
     } catch (err: any) {
@@ -52,7 +77,7 @@ export default function DisputeModal({ isOpen, onClose, scammerId, scammerName, 
               <MessageSquareWarning className="w-8 h-8 text-yellow-500" />
             </div>
           </div>
-          
+
           <h2 className="text-2xl font-black text-center mb-1 text-gray-900 dark:text-white">File a Dispute</h2>
           <p className="text-center text-sm text-gray-500 dark:text-gray-400 mb-6 font-medium">Disputing record for: <strong className="text-gray-900 dark:text-white">{scammerName}</strong></p>
 

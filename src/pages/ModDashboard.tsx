@@ -282,7 +282,7 @@ export default function ModDashboard({ tab }: ModDashboardProps) {
 
   const openAdminMessageModal = (dispute: any) => {
     setSelectedDispute(dispute);
-    setAdminMessageText(`Hello,\n\nPlease email your full evidences to vangard-bns@gmail.com. Include any relevant screenshots, transaction receipts, or conversation logs as attachments.\n\nImportant: The subject of your email MUST be your contact mobile number.\n\nThank you,\nVANGARD Moderation Team`);
+    setAdminMessageText(`Hello,\n\nPlease email your full evidences to vangard.bns@gmail.com. Include any relevant screenshots, transaction receipts, or conversation logs as attachments.\n\nImportant: The subject of your email MUST be your contact mobile number.\n\nThank you,\nVANGARD Moderation Team`);
     setAdminMessageModalOpen(true);
   };
 
